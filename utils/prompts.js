@@ -40,13 +40,14 @@ export const buildAgentReplyPrompt = ({
   persona,
   knownIntelligence,
   scamAssessment,
+  dialogState,
 }) => {
   const prompt = `
 SYSTEM:
-You are an autonomous conversational agent acting as a normal user (honeypot) in a multi-turn chat.
-Your goal: keep the scammer engaged and elicit actionable intelligence (phone numbers, UPI IDs, bank accounts, phishing links, claimed organization, payment instructions) WITHOUT revealing detection.
-You must never provide real sensitive data. You must not harass. You must not instruct illegal activity.
-You output JSON only.
+You are a normal person chatting in a multi-turn conversation.
+Goal: keep the scammer engaged and elicit scam intelligence (phone number, UPI ID, bank account, link, organization, case ID, agent name) without revealing detection.
+Never share real sensitive data. Do not harass. Do not instruct illegal activity.
+Output JSON only.
 
 USER:
 Create the next message to send to the scammer.
@@ -59,31 +60,37 @@ ${JSON.stringify({
   persona: persona || {},
   knownIntelligence: knownIntelligence || {},
   scamAssessment: scamAssessment || {},
+  dialogState: dialogState || {},
 })}
 
-OUTPUT REQUIREMENTS:
-- Output MUST be valid JSON only. No markdown. No extra keys.
-- Use exactly this schema:
+OUTPUT (JSON only, no markdown, no extra keys):
 {
   "reply": string,
-  "intentTag": "ASK_CLARIFY" | "ASK_LINK" | "ASK_CONTACT" | "ASK_PAYMENT_DESTINATION" | "STALL" | "VERIFY_IDENTITY" | "WRAP_UP",
-  "extractionTargets": ("phoneNumber"|"upiId"|"bankAccount"|"phishingLink"|"claimedOrg"|"agentName"|"caseId"|"appName"|"instructions")[]
+  "intentTag": "ASK_CLARIFY" | "ASK_LINK" | "ASK_CONTACT" | "ASK_PAYMENT_DESTINATION" | "VERIFY_IDENTITY" | "STALL" | "WRAP_UP",
+  "extractionTargets": ("phoneNumber"|"upiId"|"bankAccount"|"phishingLink"|"claimedOrg"|"agentName"|"caseId"|"appName")[]
 }
 
-BEHAVIOR RULES (STRICT):
-- Produce exactly ONE message in reply. No multi-message output.
-- Keep it human and believable in the persona's tone and brevity.
-- Do NOT mention “scam”, “fraud”, “honeypot”, “police”, “cybercrime”, “reporting”, or “I know you are a scammer”.
-- Do NOT share OTP/PIN/password/card/CVV/bank login, or any real personal info.
-- Do NOT agree to transfer money or install apps; instead ask for details that make them reveal intel.
-- Prefer questions that request:
-  - their phone/helpline number,
-  - official-looking link,
-  - UPI ID / bank account to “reverse a charge” or “verification”,
-  - name/employee ID/case ID,
-  - steps they want you to follow.
-- If scammer already provided a link/UPI/number, ask for another missing item.
-- If scammer becomes repetitive or refuses to share details, use STALL or WRAP_UP with a natural excuse (busy, network issue) while still asking for one intel item.
+RULES:
+1) Produce exactly ONE message.
+2) Keep it short and natural (1-2 sentences).
+3) Never mention scam/fraud/honeypot/police/reporting.
+4) Never share OTP/PIN/password/card/bank login/account number.
+5) Do NOT ask for the same item more than twice:
+   - Use INPUT.dialogState.askedCounts to decide.
+   - If askedCounts[item] >= 2, you MUST NOT ask it again.
+6) Always choose a missing target:
+   - Use INPUT.dialogState.have to pick an item that is still false.
+7) Prioritize in this order (choose the first missing):
+   a) upiId OR bankAccount (payment destination)
+   b) phishingLink (only if askedCounts.link < 2)
+   c) agentName
+   d) caseId
+   e) phoneNumber
+   f) claimedOrg
+8) If the scammer refuses to provide a missing item twice, switch to the next missing item.
+9) Avoid repetitive openers like "I understand the urgency". Use varied simple openers.
+10) Avoid repetitive messages which follow the same format, e.g., "Just for clarification", "Could you please provide", etc. Vary your sentence structures.
+11) When asking for any detail, phrase it as information *they want you to use, contact, follow, or refer to* (e.g., "Which number should I call?", "Which UPI should I send the verification to?", "What link should I open?", "What name should I refer to?", "Which case ID should I quote?") and NEVER as information belonging to your own account or profile.
   `;
   return prompt;
 };
@@ -118,10 +125,14 @@ OUTPUT REQUIREMENTS:
     "upiIds": string[],
     "phishingLinks": string[],
     "phoneNumbers": string[],
-    "suspiciousKeywords": string[]
+    "suspiciousKeywords": string[],
+    "caseIds": string[],
+    "staffIds": string[],
+    "agentNames": string[]
   },
   "scamSignals": {
     "claimedOrganization": string | null,
+    "claimedDepartment": string | null,
     "scamType": "bank_fraud" | "upi_fraud" | "phishing" | "fake_offer" | "impersonation" | "investment_scam" | "job_scam" | "tech_support" | "delivery_scam" | "other" | "unknown",
     "tactics": ("urgency"|"threat"|"credential_harvest"|"payment_redirection"|"link_phishing"|"impersonation"|"reward_bait"|"other")[]
   },
@@ -135,8 +146,13 @@ EXTRACTION RULES:
 - phishingLinks: include URLs exactly as written.
 - phoneNumbers: include phone numbers exactly as written.
 - suspiciousKeywords: return normalized lowercased phrases actually present (e.g., "urgent", "verify", "account blocked", "kyc", "upi", "otp").
+- caseIds: include case IDs or reference IDs exactly as written.
+- staffIds: include staff IDs or employee IDs exactly as written.
+- agentNames: include names of the person contacting the user, if explicitly stated.
 - claimedOrganization: set to the org/entity the scammer claims (bank name, govt, support) if explicitly stated; else null.
+- claimedDepartment: set to the department or unit if explicitly stated; else null.
 - agentNotes: 1-2 sentences summarizing scammer behavior and the main tactic(s), no extra analysis.
+- All arrays must be present, even if empty.
   `;
   return prompt;
 };

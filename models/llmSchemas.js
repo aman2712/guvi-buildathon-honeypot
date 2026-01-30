@@ -79,7 +79,6 @@ export const agentReplySchema = {
           "agentName",
           "caseId",
           "appName",
-          "instructions",
         ],
       },
     },
@@ -99,6 +98,9 @@ export const intelligenceExtractionSchema = {
         phishingLinks: { type: "array", items: { type: "string" } },
         phoneNumbers: { type: "array", items: { type: "string" } },
         suspiciousKeywords: { type: "array", items: { type: "string" } },
+        caseIds: { type: "array", items: { type: "string" } },
+        staffIds: { type: "array", items: { type: "string" } },
+        agentNames: { type: "array", items: { type: "string" } },
       },
       required: [
         "bankAccounts",
@@ -106,6 +108,9 @@ export const intelligenceExtractionSchema = {
         "phishingLinks",
         "phoneNumbers",
         "suspiciousKeywords",
+        "caseIds",
+        "staffIds",
+        "agentNames",
       ],
       additionalProperties: false,
     },
@@ -113,6 +118,7 @@ export const intelligenceExtractionSchema = {
       type: "object",
       properties: {
         claimedOrganization: { type: ["string", "null"] },
+        claimedDepartment: { type: ["string", "null"] },
         scamType: {
           type: "string",
           enum: [
@@ -146,7 +152,7 @@ export const intelligenceExtractionSchema = {
           },
         },
       },
-      required: ["claimedOrganization", "scamType", "tactics"],
+      required: ["claimedOrganization", "claimedDepartment", "scamType", "tactics"],
       additionalProperties: false,
     },
     agentNotes: { type: "string" },

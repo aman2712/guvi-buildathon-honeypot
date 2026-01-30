@@ -18,13 +18,15 @@ import {
   setCallbackSent,
   setConversationEnded,
   setInitialScamAssessment,
+  updateDialogState,
   updateIntelligence,
   updateMetadata,
 } from "../storage/conversationStore.js";
 import { sendFinalResult } from "../services/callback.service.js";
 
-const MIN_TOTAL_MESSAGES = Number(process.env.MIN_TOTAL_MESSAGES || 10);
-const MIN_SCAMMER_MESSAGES = Number(process.env.MIN_SCAMMER_MESSAGES || 5);
+const MIN_TOTAL_MESSAGES = Number(process.env.MIN_TOTAL_MESSAGES || 18);
+const MIN_SCAMMER_MESSAGES = Number(process.env.MIN_SCAMMER_MESSAGES || 10);
+const MIN_EXTRACTION_RUNS = Number(process.env.MIN_EXTRACTION_RUNS || 3);
 const REQUIRE_PRIMARY_INTEL = process.env.REQUIRE_PRIMARY_INTEL === "true";
 
 function countScammerMessages(messages = []) {
@@ -39,6 +41,26 @@ function hasPrimaryIntel(extractedIntelligence) {
     (extractedIntelligence.phishingLinks || []).length > 0 ||
     (extractedIntelligence.bankAccounts || []).length > 0
   );
+}
+
+function buildDialogState(session) {
+  const have = {
+    phoneNumber: (session.extractedIntelligence.phoneNumbers || []).length > 0,
+    upiId: (session.extractedIntelligence.upiIds || []).length > 0,
+    bankAccount:
+      (session.extractedIntelligence.bankAccounts || []).length > 0,
+    phishingLink:
+      (session.extractedIntelligence.phishingLinks || []).length > 0,
+    caseId: (session.extractedIntelligence.caseIds || []).length > 0,
+    agentName: (session.extractedIntelligence.agentNames || []).length > 0,
+    claimedOrg: Boolean(session.scamSignals?.claimedOrganization),
+  };
+
+  return {
+    askedCounts: session.dialogState?.askedCounts || {},
+    have,
+    lastIntentTags: session.dialogState?.lastIntentTags || [],
+  };
 }
 
 export async function handleMessage(req, res) {
@@ -58,13 +80,17 @@ export async function handleMessage(req, res) {
       });
     }
 
+    const session = getOrCreateSession(sessionId);
+    if (session.callbackSent) {
+      return res.json({ status: "success", reply: "" });
+    }
+
     const normalizedMessage = {
       sender: message.sender || "scammer",
       text: message.text,
       timestamp: message.timestamp || new Date().toISOString(),
     };
 
-    const session = getOrCreateSession(sessionId);
     updateMetadata(sessionId, req.body?.metadata);
     appendMessage(sessionId, normalizedMessage);
 
@@ -76,6 +102,7 @@ export async function handleMessage(req, res) {
     }
 
     if (result.scamLikely) {
+      const dialogState = buildDialogState(session);
       const agentPrompt = buildAgentReplyPrompt({
         sessionId,
         message: normalizedMessage,
@@ -83,6 +110,7 @@ export async function handleMessage(req, res) {
         persona: {},
         knownIntelligence: session.extractedIntelligence,
         scamAssessment: result,
+        dialogState,
       });
       const agentReply = await generateJson(
         agentPrompt,
@@ -90,6 +118,7 @@ export async function handleMessage(req, res) {
         "agent_reply",
       );
       appendReply(sessionId, agentReply.reply);
+      updateDialogState(sessionId, agentReply);
 
       const updatedSession = getOrCreateSession(sessionId);
       const messagesSinceExtract =
@@ -115,16 +144,24 @@ export async function handleMessage(req, res) {
       const totalMessages = updatedSession.messages.length;
       const scammerMessages = countScammerMessages(updatedSession.messages);
       const hasExtractionRun = updatedSession.lastExtractedMessageCount > 0;
+      const extractionRuns = updatedSession.extractionRuns || 0;
       const hasPrimaryIntelItem = hasPrimaryIntel(
         updatedSession.extractedIntelligence,
       );
       const meetsEndGate =
         totalMessages >= MIN_TOTAL_MESSAGES &&
         scammerMessages >= MIN_SCAMMER_MESSAGES &&
-        hasExtractionRun &&
+        extractionRuns >= MIN_EXTRACTION_RUNS &&
         (!REQUIRE_PRIMARY_INTEL || hasPrimaryIntelItem);
 
-      if (meetsEndGate) {
+      const hasAllPrimaryIntel =
+        (updatedSession.extractedIntelligence.upiIds || []).length > 0 &&
+        (updatedSession.extractedIntelligence.phoneNumbers || []).length > 0 &&
+        (updatedSession.extractedIntelligence.bankAccounts || []).length > 0;
+
+      const meetsEarlyStop = hasExtractionRun && hasAllPrimaryIntel;
+
+      if (meetsEndGate || meetsEarlyStop) {
         const endPrompt = buildConversationEndPrompt({
           sessionId,
           conversation: updatedSession.messages,
@@ -156,12 +193,49 @@ export async function handleMessage(req, res) {
           }
 
           if (endSession.scamAssessment?.scamLikely && !endSession.callbackSent) {
+            const payloadIntel = {
+              bankAccounts: endSession.extractedIntelligence.bankAccounts || [],
+              upiIds: endSession.extractedIntelligence.upiIds || [],
+              phishingLinks: endSession.extractedIntelligence.phishingLinks || [],
+              phoneNumbers: endSession.extractedIntelligence.phoneNumbers || [],
+              suspiciousKeywords:
+                endSession.extractedIntelligence.suspiciousKeywords || [],
+            };
+
+            const noteParts = [];
+            if (endSession.agentNotes) noteParts.push(endSession.agentNotes);
+            if (endSession.extractedIntelligence.caseIds?.length) {
+              noteParts.push(
+                `Case IDs: ${endSession.extractedIntelligence.caseIds.join(", ")}`,
+              );
+            }
+            if (endSession.extractedIntelligence.staffIds?.length) {
+              noteParts.push(
+                `Staff IDs: ${endSession.extractedIntelligence.staffIds.join(", ")}`,
+              );
+            }
+            if (endSession.extractedIntelligence.agentNames?.length) {
+              noteParts.push(
+                `Names: ${endSession.extractedIntelligence.agentNames.join(", ")}`,
+              );
+            }
+            if (endSession.scamSignals?.claimedOrganization) {
+              noteParts.push(
+                `Claimed org: ${endSession.scamSignals.claimedOrganization}`,
+              );
+            }
+            if (endSession.scamSignals?.claimedDepartment) {
+              noteParts.push(
+                `Claimed dept: ${endSession.scamSignals.claimedDepartment}`,
+              );
+            }
+
             const payload = {
               sessionId,
               scamDetected: true,
               totalMessagesExchanged: endSession.messages.length,
-              extractedIntelligence: endSession.extractedIntelligence,
-              agentNotes: endSession.agentNotes || "",
+              extractedIntelligence: payloadIntel,
+              agentNotes: noteParts.join(" "),
             };
             await sendFinalResult(payload);
             setCallbackSent(sessionId, true);
