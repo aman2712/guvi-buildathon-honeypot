@@ -1,0 +1,17 @@
+{
+  "name": "guvi-hackathon-honeypot",
+  "version": "1.0.0",
+  "description": "A solution for problem 2 of GUVI AI India Impact Buildathon",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "author": "Md Aman Khan",
+  "license": "ISC",
+  "type": "module",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.2"
+  }
+}
