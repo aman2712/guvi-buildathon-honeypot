@@ -28,40 +28,64 @@ export async function generateJson(
 ) {
   if (!openaiKey) {
     const error = new Error("OPENAI_API_KEY not configured");
-    error.status = 500;
+    error.status = 400;
+    console.error("[LLM] Missing OPENAI_API_KEY");
     throw error;
   }
 
-  const response = await axios.post(
-    "https://api.openai.com/v1/responses",
-    {
-      model: openaiModel,
-      input: prompt,
-      temperature: 0.1,
-      text: {
-        format: {
-          type: "json_schema",
-          name: schemaName,
-          strict: true,
-          schema,
+  let response;
+  try {
+    response = await axios.post(
+      "https://api.openai.com/v1/responses",
+      {
+        model: openaiModel,
+        input: prompt,
+        temperature: 0.1,
+        text: {
+          format: {
+            type: "json_schema",
+            name: schemaName,
+            strict: true,
+            schema,
+          },
         },
       },
-    },
-    {
-      headers: {
-        Authorization: `Bearer ${openaiKey}`,
-        "Content-Type": "application/json",
+      {
+        headers: {
+          Authorization: `Bearer ${openaiKey}`,
+          "Content-Type": "application/json",
+        },
+        timeout: 8000,
       },
-      timeout: 8000,
-    },
-  );
+    );
+  } catch (error) {
+    const status = error.response?.status;
+    const data = error.response?.data;
+    console.error(
+      `[LLM] OpenAI request failed (schema=${schemaName}, model=${openaiModel})`,
+    );
+    if (status) console.error(`[LLM] HTTP status: ${status}`);
+    if (data) console.error("[LLM] Response body:", data);
+    const wrapped = new Error("LLM request failed");
+    wrapped.status = 400;
+    wrapped.details = data;
+    throw wrapped;
+  }
 
   const text = extractOutputText(response.data);
   if (!text) {
     const error = new Error("OpenAI returned empty response");
-    error.status = 502;
+    error.status = 400;
+    console.error("[LLM] Empty response output_text", response.data);
     throw error;
   }
 
-  return JSON.parse(text);
+  try {
+    return JSON.parse(text);
+  } catch (error) {
+    console.error("[LLM] Failed to parse JSON output", text);
+    const wrapped = new Error("LLM returned invalid JSON");
+    wrapped.status = 400;
+    throw wrapped;
+  }
 }

@@ -72,7 +72,7 @@ OUTPUT (JSON only, no markdown, no extra keys):
 
 RULES:
 1) Produce exactly ONE message.
-2) Keep it short and natural (1-2 sentences).
+2) Keep it short and natural (2-3 sentences).
 3) Never mention scam/fraud/honeypot/police/reporting.
 4) Never share OTP/PIN/password/card/bank login/account number.
 5) Do NOT ask for the same item more than twice:
@@ -81,16 +81,17 @@ RULES:
 6) Always choose a missing target:
    - Use INPUT.dialogState.have to pick an item that is still false.
 7) Prioritize in this order (choose the first missing):
-   a) upiId OR bankAccount (payment destination)
+   a) upiId AND bankAccount (payment destination)
    b) phishingLink (only if askedCounts.link < 2)
-   c) agentName
-   d) caseId
-   e) phoneNumber
+   c) phoneNumber
+   d) agentName
+   e) caseId
    f) claimedOrg
 8) If the scammer refuses to provide a missing item twice, switch to the next missing item.
 9) Avoid repetitive openers like "I understand the urgency". Use varied simple openers.
 10) Avoid repetitive messages which follow the same format, e.g., "Just for clarification", "Could you please provide", etc. Vary your sentence structures.
 11) When asking for any detail, phrase it as information *they want you to use, contact, follow, or refer to* (e.g., "Which number should I call?", "Which UPI should I send the verification to?", "What link should I open?", "What name should I refer to?", "Which case ID should I quote?") and NEVER as information belonging to your own account or profile.
+12) Each reply must explicitly react to the scammer's immediately previous message (e.g., acknowledge urgency, respond to their instructions, or reference a specific claim they just made) before asking for any new detail. Do not start a reply with a question. Any question asked must be a natural follow-up to something mentioned in the scammer's last message so the conversation flows like a real human exchange.
   `;
   return prompt;
 };

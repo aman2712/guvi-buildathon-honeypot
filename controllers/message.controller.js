@@ -47,8 +47,7 @@ function buildDialogState(session) {
   const have = {
     phoneNumber: (session.extractedIntelligence.phoneNumbers || []).length > 0,
     upiId: (session.extractedIntelligence.upiIds || []).length > 0,
-    bankAccount:
-      (session.extractedIntelligence.bankAccounts || []).length > 0,
+    bankAccount: (session.extractedIntelligence.bankAccounts || []).length > 0,
     phishingLink:
       (session.extractedIntelligence.phishingLinks || []).length > 0,
     caseId: (session.extractedIntelligence.caseIds || []).length > 0,
@@ -64,24 +63,29 @@ function buildDialogState(session) {
 }
 
 export async function handleMessage(req, res) {
+  console.log("[Request] made");
   try {
-    console.log("request was made!");
     const { message, sessionId } = req.body || {};
     if (!sessionId || typeof sessionId !== "string") {
+      console.error("[Request] Missing or invalid sessionId");
       return res.status(400).json({
-        status: "error",
+        status: "failed",
+        reply: "",
         message: "sessionId is required",
       });
     }
     if (!message || typeof message.text !== "string" || !message.text.trim()) {
+      console.error("[Request] Missing or invalid message.text");
       return res.status(400).json({
-        status: "error",
+        status: "failed",
+        reply: "",
         message: "message.text is required",
       });
     }
 
     const session = getOrCreateSession(sessionId);
     if (session.callbackSent) {
+      console.error("[Session] Callback already sent, hard stop");
       return res.json({ status: "success", reply: "" });
     }
 
@@ -102,6 +106,7 @@ export async function handleMessage(req, res) {
     }
 
     if (result.scamLikely) {
+      let responseReply = null;
       const dialogState = buildDialogState(session);
       const agentPrompt = buildAgentReplyPrompt({
         sessionId,
@@ -119,6 +124,7 @@ export async function handleMessage(req, res) {
       );
       appendReply(sessionId, agentReply.reply);
       updateDialogState(sessionId, agentReply);
+      responseReply = agentReply.reply;
 
       const updatedSession = getOrCreateSession(sessionId);
       const messagesSinceExtract =
@@ -177,7 +183,9 @@ export async function handleMessage(req, res) {
         if (endDecision.endConversation) {
           setConversationEnded(sessionId, true);
           const endSession = getOrCreateSession(sessionId);
-          if (endSession.lastExtractedMessageCount < endSession.messages.length) {
+          if (
+            endSession.lastExtractedMessageCount < endSession.messages.length
+          ) {
             const finalExtractPrompt = buildIntelligenceExtractionPrompt({
               sessionId,
               conversation: endSession.messages,
@@ -192,11 +200,20 @@ export async function handleMessage(req, res) {
             markExtractionRun(sessionId);
           }
 
-          if (endSession.scamAssessment?.scamLikely && !endSession.callbackSent) {
+          if (
+            endSession.scamAssessment?.scamLikely &&
+            !endSession.callbackSent
+          ) {
+            const disengagementMessage =
+              "Alright, I have what I need for now. I'll follow up shortly.";
+            appendReply(sessionId, disengagementMessage);
+            responseReply = disengagementMessage;
+
             const payloadIntel = {
               bankAccounts: endSession.extractedIntelligence.bankAccounts || [],
               upiIds: endSession.extractedIntelligence.upiIds || [],
-              phishingLinks: endSession.extractedIntelligence.phishingLinks || [],
+              phishingLinks:
+                endSession.extractedIntelligence.phishingLinks || [],
               phoneNumbers: endSession.extractedIntelligence.phoneNumbers || [],
               suspiciousKeywords:
                 endSession.extractedIntelligence.suspiciousKeywords || [],
@@ -239,18 +256,22 @@ export async function handleMessage(req, res) {
             };
             await sendFinalResult(payload);
             setCallbackSent(sessionId, true);
+            setConversationEnded(sessionId, true);
           }
         }
       }
 
       return res.json({
         status: "success",
-        reply: agentReply.reply,
+        reply: responseReply || "",
       });
     }
     return res.json({ message: "Message is not likely a scam." });
   } catch (error) {
-    const status = error.status || 500;
-    return res.status(status).json({ status: "error", message: error.message });
+    const status = 400;
+    console.error("[Request] Unhandled error", error);
+    return res
+      .status(status)
+      .json({ status: "failed", reply: "", message: error.message });
   }
 }
