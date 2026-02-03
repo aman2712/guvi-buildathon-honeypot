@@ -27,6 +27,7 @@ import { sendFinalResult } from "../services/callback.service.js";
 const MIN_TOTAL_MESSAGES = Number(process.env.MIN_TOTAL_MESSAGES || 18);
 const MIN_SCAMMER_MESSAGES = Number(process.env.MIN_SCAMMER_MESSAGES || 10);
 const MIN_EXTRACTION_RUNS = Number(process.env.MIN_EXTRACTION_RUNS || 3);
+const GRACE_MESSAGES = Number(process.env.GRACE_MESSAGES || 4);
 const REQUIRE_PRIMARY_INTEL = process.env.REQUIRE_PRIMARY_INTEL === "true";
 
 function countScammerMessages(messages = []) {
@@ -167,18 +168,22 @@ export async function handleMessage(req, res) {
 
       const meetsEarlyStop = hasExtractionRun && hasAllPrimaryIntel;
 
-      if (meetsEndGate || meetsEarlyStop) {
+      const hardStopReached = totalMessages >= MIN_TOTAL_MESSAGES + GRACE_MESSAGES;
+
+      if (meetsEndGate || meetsEarlyStop || hardStopReached) {
         const endPrompt = buildConversationEndPrompt({
           sessionId,
           conversation: updatedSession.messages,
           scamAssessment: updatedSession.scamAssessment,
           extractedIntelligence: updatedSession.extractedIntelligence,
         });
-        const endDecision = await generateJson(
-          endPrompt,
-          conversationEndSchema,
-          "conversation_end",
-        );
+        const endDecision = hardStopReached
+          ? { endConversation: true, reason: "Hard stop reached" }
+          : await generateJson(
+              endPrompt,
+              conversationEndSchema,
+              "conversation_end",
+            );
 
         if (endDecision.endConversation) {
           setConversationEnded(sessionId, true);
