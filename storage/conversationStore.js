@@ -39,6 +39,9 @@ export function getOrCreateSession(sessionId) {
         },
         lastIntentTags: [],
       },
+      timing: {
+        responseTimesMs: [],
+      },
     });
   }
   return sessions.get(sessionId);
@@ -190,6 +193,25 @@ export function setCallbackSent(sessionId, sent) {
   const session = getOrCreateSession(sessionId);
   session.callbackSent = Boolean(sent);
   return session;
+}
+
+export function recordResponseTime(sessionId, durationMs) {
+  const session = getOrCreateSession(sessionId);
+  const value = Number(durationMs);
+  if (!Number.isNaN(value)) {
+    session.timing.responseTimesMs.push(value);
+  }
+  return session;
+}
+
+export function getTimingStats(sessionId) {
+  const session = getOrCreateSession(sessionId);
+  const times = session.timing.responseTimesMs || [];
+  if (times.length === 0) {
+    return { times: [], averageMs: 0 };
+  }
+  const total = times.reduce((sum, t) => sum + t, 0);
+  return { times, averageMs: total / times.length };
 }
 
 export function updateDialogState(sessionId, agentReply) {
