@@ -32,6 +32,8 @@ export function getOrCreateSession(sessionId) {
         askedCounts: {
           link: 0,
           paymentDestination: 0,
+          upiId: 0,
+          bankAccount: 0,
           caseId: 0,
           agentName: 0,
           phoneNumber: 0,
@@ -119,20 +121,34 @@ function filterBankAccounts(list = []) {
   return list.filter((item) => isLikelyBankAccount(item));
 }
 
+function isLikelyPhishingLink(value) {
+  if (!value || typeof value !== "string") return false;
+  return /^https?:\/\/\S+$/i.test(value.trim());
+}
+
+function isLikelyUpiId(value) {
+  if (!value || typeof value !== "string") return false;
+  return /^[a-z0-9._-]{2,}@[a-z0-9.-]{2,}$/i.test(value.trim());
+}
+
 export function updateIntelligence(sessionId, extractionResult) {
   const session = getOrCreateSession(sessionId);
   const intel = extractionResult?.extractedIntelligence || {};
   const sanitizedBankAccounts = filterBankAccounts(intel.bankAccounts || []);
+  const rawPhishingLinks = intel.phishingLinks || [];
+  const sanitizedPhishingLinks = rawPhishingLinks.filter(isLikelyPhishingLink);
+  const reclassifiedUpiIds = rawPhishingLinks.filter(isLikelyUpiId);
+  const mergedUpiIds = [...(intel.upiIds || []), ...reclassifiedUpiIds];
 
   session.extractedIntelligence = {
     bankAccounts: mergeUnique(
       session.extractedIntelligence.bankAccounts,
       sanitizedBankAccounts,
     ),
-    upiIds: mergeUnique(session.extractedIntelligence.upiIds, intel.upiIds),
+    upiIds: mergeUnique(session.extractedIntelligence.upiIds, mergedUpiIds),
     phishingLinks: mergeUnique(
       session.extractedIntelligence.phishingLinks,
-      intel.phishingLinks,
+      sanitizedPhishingLinks,
     ),
     phoneNumbers: mergeUnique(
       session.extractedIntelligence.phoneNumbers,
@@ -227,6 +243,12 @@ export function updateDialogState(sessionId, agentReply) {
     extractionTargets.includes("bankAccount")
   ) {
     askedCounts.paymentDestination = (askedCounts.paymentDestination || 0) + 1;
+  }
+  if (extractionTargets.includes("upiId")) {
+    askedCounts.upiId = (askedCounts.upiId || 0) + 1;
+  }
+  if (extractionTargets.includes("bankAccount")) {
+    askedCounts.bankAccount = (askedCounts.bankAccount || 0) + 1;
   }
   if (extractionTargets.includes("caseId")) {
     askedCounts.caseId = (askedCounts.caseId || 0) + 1;

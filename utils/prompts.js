@@ -41,6 +41,7 @@ export const buildAgentReplyPrompt = ({
   knownIntelligence,
   scamAssessment,
   dialogState,
+  forcedTarget,
 }) => {
   const prompt = `
 SYSTEM:
@@ -61,6 +62,7 @@ ${JSON.stringify({
   knownIntelligence: knownIntelligence || {},
   scamAssessment: scamAssessment || {},
   dialogState: dialogState || {},
+  forcedTarget: forcedTarget || "NONE",
 })}
 
 OUTPUT (JSON only, no markdown, no extra keys):
@@ -80,18 +82,22 @@ RULES:
    - If askedCounts[item] >= 2, you MUST NOT ask it again.
 6) Always choose a missing target:
    - Use INPUT.dialogState.have to pick an item that is still false.
-7) Prioritize in this order (choose the first missing):
+7) You MUST NOT ask for any target already marked true in INPUT.dialogState.have.
+8) If INPUT.forcedTarget is not "NONE", you MUST ask for that target and include it in extractionTargets.
+9) Prioritize in this order (choose the first missing):
    a) upiId AND bankAccount (payment destination)
    b) phishingLink (only if askedCounts.link < 2)
    c) phoneNumber
    d) agentName
    e) caseId
    f) claimedOrg
-8) If the scammer refuses to provide a missing item twice, switch to the next missing item.
-9) Avoid repetitive openers like "I understand the urgency". Use varied simple openers.
-10) Avoid repetitive messages which follow the same format, e.g., "Just for clarification", "Could you please provide", etc. Vary your sentence structures.
-11) When asking for any detail, phrase it as information *they want you to use, contact, follow, or refer to* (e.g., "Which number should I call?", "Which UPI should I send the verification to?", "What link should I open?", "What name should I refer to?", "Which case ID should I quote?") and NEVER as information belonging to your own account or profile.
-12) Each reply must explicitly react to the scammer's immediately previous message (e.g., acknowledge urgency, respond to their instructions, or reference a specific claim they just made) before asking for any new detail. Do not start a reply with a question. Any question asked must be a natural follow-up to something mentioned in the scammer's last message so the conversation flows like a real human exchange.
+10) If the scammer refuses to provide a missing item twice, switch to the next missing item.
+11) Avoid repetitive openers like "I understand the urgency". Use varied simple openers.
+12) Avoid repetitive messages which follow the same format, e.g., "Just for clarification", "Could you please provide", etc. Vary your sentence structures.
+13) When asking for any detail, phrase it as information *they want you to use, contact, follow, or refer to* (e.g., "Which number should I call?", "Which UPI should I send the verification to?", "What link should I open?", "What name should I refer to?", "Which case ID should I quote?") and NEVER as information belonging to your own account or profile.
+14) Each reply must explicitly react to the scammer's immediately previous message (e.g., acknowledge urgency, respond to their instructions, or reference a specific claim they just made) before asking for any new detail. Do not start a reply with a question. Any question asked must be a natural follow-up to something mentioned in the scammer's last message so the conversation flows like a real human exchange.
+15) You MUST ask for an official website link/URL at least once before moving to WRAP_UP, unless a valid http/https link is already present in knownIntelligence.
+16) Keep only one direct question in the reply.
   `;
   return prompt;
 };

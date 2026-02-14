@@ -46,6 +46,81 @@ function hasPrimaryIntel(extractedIntelligence) {
   );
 }
 
+function extractInlineIntel(text = "") {
+  const source = typeof text === "string" ? text : "";
+  const lower = source.toLowerCase();
+
+  const upiIds = Array.from(
+    new Set(source.match(/\b[a-z0-9._-]{2,}@[a-z][a-z0-9.-]{1,}\b/gi) || []),
+  );
+
+  const phishingLinks = Array.from(
+    new Set(source.match(/https?:\/\/\S+/gi) || []),
+  );
+
+  const bankAccounts = [];
+  const bankRegex =
+    /(account|acct|a\/c|bank)\s*(number|no\.?|id)?\s*[:#-]?\s*([0-9Xx*\s\-_/]{9,24})/gi;
+  let bankMatch = null;
+  while ((bankMatch = bankRegex.exec(source)) !== null) {
+    if (bankMatch[3]) {
+      bankAccounts.push(bankMatch[3].trim());
+    }
+  }
+
+  const bankDigits = new Set(
+    bankAccounts.map((value) => (value.match(/\d/g) || []).join("")),
+  );
+  const phoneNumbers = Array.from(
+    new Set(source.match(/(?:\+?\d[\d\s-]{8,}\d)/g) || []),
+  ).filter((value) => {
+    const digits = (value.match(/\d/g) || []).join("");
+    const digitCount = digits.length;
+    if (digitCount < 10 || digitCount > 13) return false;
+    if (bankDigits.has(digits)) return false;
+    return true;
+  });
+
+  const suspiciousKeywords = [
+    "urgent",
+    "verify",
+    "otp",
+    "upi",
+    "account blocked",
+    "locked",
+    "kyc",
+  ].filter((kw) => lower.includes(kw));
+
+  const caseIds = [];
+  const caseMatch =
+    source.match(
+      /\b(case|reference)\s*(id|no\.?|number)?\s*[:#-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,})/i,
+    ) || [];
+  if (caseMatch[3]) caseIds.push(caseMatch[3]);
+
+  return {
+    bankAccounts,
+    upiIds,
+    phishingLinks,
+    phoneNumbers,
+    suspiciousKeywords,
+    caseIds,
+    staffIds: [],
+    agentNames: [],
+  };
+}
+
+function hasInlineIntel(intel = {}) {
+  return (
+    (intel.bankAccounts || []).length > 0 ||
+    (intel.upiIds || []).length > 0 ||
+    (intel.phishingLinks || []).length > 0 ||
+    (intel.phoneNumbers || []).length > 0 ||
+    (intel.suspiciousKeywords || []).length > 0 ||
+    (intel.caseIds || []).length > 0
+  );
+}
+
 function buildDialogState(session) {
   const have = {
     phoneNumber: (session.extractedIntelligence.phoneNumbers || []).length > 0,
@@ -63,6 +138,78 @@ function buildDialogState(session) {
     have,
     lastIntentTags: session.dialogState?.lastIntentTags || [],
   };
+}
+
+function hasLinkEvidence(session) {
+  if (!session) return false;
+
+  const hasExtractedLink =
+    (session.extractedIntelligence?.phishingLinks || []).length > 0;
+  if (hasExtractedLink) return true;
+
+  const askedLinkCount = session.dialogState?.askedCounts?.link || 0;
+  if (askedLinkCount > 0) return true;
+
+  // Backup check in case the model forgot to tag extractionTargets.
+  return (session.messages || []).some(
+    (msg) =>
+      msg.sender === "user" &&
+      /(official\s+link|website|url|portal|site)/i.test(msg.text || ""),
+  );
+}
+
+function chooseForcedTarget(dialogState) {
+  const have = dialogState?.have || {};
+  const asked = dialogState?.askedCounts || {};
+  const canAsk = (key) => (asked[key] || 0) < 2;
+
+  // Priority is explicit and deterministic to avoid loops.
+  if (!have.upiId && canAsk("upiId")) return "upiId";
+  if (!have.bankAccount && canAsk("bankAccount")) return "bankAccount";
+  if (!have.phishingLink && canAsk("link")) return "phishingLink";
+  if (!have.phoneNumber && canAsk("phoneNumber")) return "phoneNumber";
+  if (!have.agentName && canAsk("agentName")) return "agentName";
+  if (!have.caseId && canAsk("caseId")) return "caseId";
+  if (!have.claimedOrg && canAsk("claimedOrg")) return "claimedOrg";
+  return "NONE";
+}
+
+function replyMentionsTarget(reply = "", target = "NONE") {
+  const text = String(reply || "").toLowerCase();
+  if (target === "NONE") return true;
+  if (target === "upiId") return /\bupi\b|\b@\b/.test(text);
+  if (target === "bankAccount") return /\baccount\b|\bbank\b/.test(text);
+  if (target === "phishingLink") return /\blink\b|\bwebsite\b|\burl\b|\bportal\b/.test(text);
+  if (target === "phoneNumber") return /\bcall\b|\bcontact\b|\bnumber\b|\bhelpline\b/.test(text);
+  if (target === "agentName") return /\bname\b/.test(text);
+  if (target === "caseId") return /\bcase\b|\breference\b/.test(text);
+  if (target === "claimedOrg") return /\borganization\b|\borg\b|\bdepartment\b|\bcompany\b/.test(text);
+  return true;
+}
+
+function forcedTargetFallbackReply(target = "NONE") {
+  if (target === "upiId") {
+    return "I want to follow your steps correctly. Which UPI ID should I use for this verification?";
+  }
+  if (target === "bankAccount") {
+    return "I want to do this correctly. Which bank account should I use for the verification?";
+  }
+  if (target === "phishingLink") {
+    return "I want to verify this on the right portal. Which official website link should I open?";
+  }
+  if (target === "phoneNumber") {
+    return "If this fails, which official number should I call for support?";
+  }
+  if (target === "agentName") {
+    return "Who should I ask for when I follow up on this?";
+  }
+  if (target === "caseId") {
+    return "Which case ID should I quote so this request is tracked?";
+  }
+  if (target === "claimedOrg") {
+    return "Which official organization name should I mention for this verification?";
+  }
+  return "";
 }
 
 export async function processMessage(payload) {
@@ -116,24 +263,49 @@ export async function processMessage(payload) {
 
   if (result.scamLikely) {
     let responseReply = null;
-    const dialogState = buildDialogState(session);
+    if (normalizedMessage.sender === "scammer") {
+      const inlineIntel = extractInlineIntel(normalizedMessage.text);
+      if (hasInlineIntel(inlineIntel)) {
+        updateIntelligence(sessionId, { extractedIntelligence: inlineIntel });
+      }
+    }
+
+    const refreshedSession = getOrCreateSession(sessionId);
+    const dialogState = buildDialogState(refreshedSession);
+    const forcedTarget = chooseForcedTarget(dialogState);
     const agentPrompt = buildAgentReplyPrompt({
       sessionId,
       message: normalizedMessage,
-      conversationHistory: session.messages,
+      conversationHistory: refreshedSession.messages,
       persona: {},
-      knownIntelligence: session.extractedIntelligence,
+      knownIntelligence: refreshedSession.extractedIntelligence,
       scamAssessment: result,
       dialogState,
+      forcedTarget,
     });
     const agentReply = await generateJson(
       agentPrompt,
       agentReplySchema,
       "agent_reply",
     );
-    appendReply(sessionId, agentReply.reply);
-    updateDialogState(sessionId, agentReply);
-    responseReply = agentReply.reply;
+
+    const mergedTargets = new Set(agentReply.extractionTargets || []);
+    if (forcedTarget !== "NONE") mergedTargets.add(forcedTarget);
+    const normalizedAgentReply = {
+      ...agentReply,
+      extractionTargets: Array.from(mergedTargets),
+    };
+
+    let finalReply = normalizedAgentReply.reply || "";
+    if (!replyMentionsTarget(finalReply, forcedTarget)) {
+      const fallback = forcedTargetFallbackReply(forcedTarget);
+      if (fallback) finalReply = fallback;
+    }
+
+    appendReply(sessionId, finalReply);
+    normalizedAgentReply.reply = finalReply;
+    updateDialogState(sessionId, normalizedAgentReply);
+    responseReply = finalReply;
 
     const updatedSession = getOrCreateSession(sessionId);
     const messagesSinceExtract =
@@ -173,12 +345,19 @@ export async function processMessage(payload) {
       (updatedSession.extractedIntelligence.phoneNumbers || []).length > 0 &&
       (updatedSession.extractedIntelligence.bankAccounts || []).length > 0;
 
-    const meetsEarlyStop = hasExtractionRun && hasAllPrimaryIntel;
+    const hasAskedOrCapturedLink = hasLinkEvidence(updatedSession);
+    const meetsEarlyStop =
+      hasExtractionRun && hasAllPrimaryIntel && hasAskedOrCapturedLink;
 
     const hardStopReached =
       totalMessages >= MIN_TOTAL_MESSAGES + GRACE_MESSAGES;
 
-    if (meetsEndGate || meetsEarlyStop || hardStopReached) {
+    const shouldEvaluateEnd =
+      hardStopReached ||
+      meetsEarlyStop ||
+      (meetsEndGate && hasAskedOrCapturedLink);
+
+    if (shouldEvaluateEnd) {
       const endPrompt = buildConversationEndPrompt({
         sessionId,
         conversation: updatedSession.messages,
