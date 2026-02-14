@@ -31,6 +31,15 @@ const MIN_SCAMMER_MESSAGES = Number(process.env.MIN_SCAMMER_MESSAGES || 10);
 const MIN_EXTRACTION_RUNS = Number(process.env.MIN_EXTRACTION_RUNS || 3);
 const GRACE_MESSAGES = Number(process.env.GRACE_MESSAGES || 4);
 const REQUIRE_PRIMARY_INTEL = process.env.REQUIRE_PRIMARY_INTEL === "true";
+const POST_PRIMARY_GRACE_TOTAL_MESSAGES = Number(
+  process.env.POST_PRIMARY_GRACE_TOTAL_MESSAGES || 4,
+);
+const POST_PRIMARY_GRACE_SCAMMER_MESSAGES = Number(
+  process.env.POST_PRIMARY_GRACE_SCAMMER_MESSAGES || 2,
+);
+const NO_NEW_INTEL_SCAMMER_TURNS = Number(
+  process.env.NO_NEW_INTEL_SCAMMER_TURNS || 2,
+);
 
 function countScammerMessages(messages = []) {
   return messages.filter((msg) => msg.sender === "scammer").length;
@@ -44,6 +53,44 @@ function hasPrimaryIntel(extractedIntelligence) {
     (extractedIntelligence.phishingLinks || []).length > 0 ||
     (extractedIntelligence.bankAccounts || []).length > 0
   );
+}
+
+function uniqueSorted(values = []) {
+  return Array.from(new Set(values || [])).filter(Boolean).sort();
+}
+
+function buildIntelFingerprint(session) {
+  const intel = session?.extractedIntelligence || {};
+  const signals = session?.scamSignals || {};
+  return JSON.stringify({
+    bankAccounts: uniqueSorted(intel.bankAccounts),
+    upiIds: uniqueSorted(intel.upiIds),
+    phishingLinks: uniqueSorted(intel.phishingLinks),
+    phoneNumbers: uniqueSorted(intel.phoneNumbers),
+    caseIds: uniqueSorted(intel.caseIds),
+    staffIds: uniqueSorted(intel.staffIds),
+    agentNames: uniqueSorted(intel.agentNames),
+    claimedOrganization: signals.claimedOrganization || "",
+    claimedDepartment: signals.claimedDepartment || "",
+  });
+}
+
+function updatePrimaryCaptureState(
+  session,
+  totalMessages,
+  scammerMessages,
+  primaryCapturedNow,
+) {
+  const fingerprint = buildIntelFingerprint(session);
+  if (session.lastIntelFingerprint !== fingerprint) {
+    session.lastIntelFingerprint = fingerprint;
+    session.lastIntelGrowthScammerMessages = scammerMessages;
+  }
+
+  if (primaryCapturedNow && session.primaryCaptureTotalMessages === null) {
+    session.primaryCaptureTotalMessages = totalMessages;
+    session.primaryCaptureScammerMessages = scammerMessages;
+  }
 }
 
 function extractInlineIntel(text = "") {
@@ -91,12 +138,7 @@ function extractInlineIntel(text = "") {
     "kyc",
   ].filter((kw) => lower.includes(kw));
 
-  const caseIds = [];
-  const caseMatch =
-    source.match(
-      /\b(case|reference)\s*(id|no\.?|number)?\s*[:#-]?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,})/i,
-    ) || [];
-  if (caseMatch[3]) caseIds.push(caseMatch[3]);
+  const caseIds = extractCaseIdsFromText(source);
 
   return {
     bankAccounts,
@@ -121,8 +163,52 @@ function hasInlineIntel(intel = {}) {
   );
 }
 
+function extractCaseIdsFromText(text = "") {
+  const source = typeof text === "string" ? text : "";
+  const regex =
+    /\b(?:case|reference|ref)\s*(?:id|no\.?|number)?\s*(?:is|:|#|-)?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,})\b/gi;
+  const results = new Set();
+  let match = null;
+
+  while ((match = regex.exec(source)) !== null) {
+    const rawValue = (match[1] || "").trim().replace(/[.,;:!?]+$/, "");
+    // Case/reference IDs in this flow are expected to include at least one digit.
+    if (rawValue && /\d/.test(rawValue)) {
+      results.add(rawValue);
+    }
+  }
+
+  return Array.from(results);
+}
+
+function deriveHaveFromMessages(messages = []) {
+  const scammerText = (messages || [])
+    .filter((msg) => msg.sender === "scammer")
+    .map((msg) => msg.text || "")
+    .join("\n");
+  const normalized = String(scammerText || "");
+
+  return {
+    phoneNumber: /(?:\+?\d[\d\s-]{8,}\d)/.test(normalized),
+    upiId: /\b[a-z0-9._-]{2,}@[a-z][a-z0-9.-]{1,}\b/i.test(normalized),
+    bankAccount:
+      /\b(?:account|acct|a\/c|bank)\b[\s\S]{0,24}\b\d{9,18}\b/i.test(
+        normalized,
+      ),
+    phishingLink: /https?:\/\/\S+/i.test(normalized),
+    caseId: extractCaseIdsFromText(normalized).length > 0,
+    agentName: /\b(?:i am|my name is|agent|mr\.?|mrs\.?|ms\.?)\b/i.test(
+      normalized,
+    ),
+    claimedOrg:
+      /\b(?:bank|sbi|customer care|support|security team|verification team|fraud prevention)\b/i.test(
+        normalized,
+      ),
+  };
+}
+
 function buildDialogState(session) {
-  const have = {
+  const baseHave = {
     phoneNumber: (session.extractedIntelligence.phoneNumbers || []).length > 0,
     upiId: (session.extractedIntelligence.upiIds || []).length > 0,
     bankAccount: (session.extractedIntelligence.bankAccounts || []).length > 0,
@@ -131,6 +217,16 @@ function buildDialogState(session) {
     caseId: (session.extractedIntelligence.caseIds || []).length > 0,
     agentName: (session.extractedIntelligence.agentNames || []).length > 0,
     claimedOrg: Boolean(session.scamSignals?.claimedOrganization),
+  };
+  const observedHave = deriveHaveFromMessages(session.messages || []);
+  const have = {
+    phoneNumber: baseHave.phoneNumber || observedHave.phoneNumber,
+    upiId: baseHave.upiId || observedHave.upiId,
+    bankAccount: baseHave.bankAccount || observedHave.bankAccount,
+    phishingLink: baseHave.phishingLink || observedHave.phishingLink,
+    caseId: baseHave.caseId || observedHave.caseId,
+    agentName: baseHave.agentName || observedHave.agentName,
+    claimedOrg: baseHave.claimedOrg || observedHave.claimedOrg,
   };
 
   return {
@@ -174,10 +270,63 @@ function chooseForcedTarget(dialogState) {
   return "NONE";
 }
 
+function inferExtractionTargetsFromReply(reply = "") {
+  const text = String(reply || "");
+  const lower = text.toLowerCase();
+  const targets = new Set();
+  const isQuestionLike = /\?/.test(text) || /\b(could|can|which|what|where|who)\b/i.test(text);
+
+  if (!isQuestionLike) {
+    return [];
+  }
+
+  if (/\bupi\b|@\w+/i.test(lower)) targets.add("upiId");
+  if (/\bbank account\b|\baccount number\b|\ba\/c\b/i.test(lower)) {
+    targets.add("bankAccount");
+  }
+  if (/\bofficial\s+(website|link|url)\b|\bwebsite\b|\blink\b|\burl\b|\bportal\b/i.test(lower)) {
+    targets.add("phishingLink");
+  }
+  if (
+    /\b(helpline|phone number|contact number|number should i call|which number should i call|call)\b/i.test(
+      lower,
+    )
+  ) {
+    targets.add("phoneNumber");
+  }
+  if (/\bcase\s*id\b|\breference\b/i.test(lower)) targets.add("caseId");
+  if (/\bagent\b|\bname\b/i.test(lower)) targets.add("agentName");
+  if (/\borganization\b|\bdepartment\b|\bcompany\b|\borg\b/i.test(lower)) {
+    targets.add("claimedOrg");
+  }
+
+  return Array.from(targets);
+}
+
+function getAskedCountKey(target = "") {
+  if (target === "phishingLink") return "link";
+  if (target === "bankAccount") return "bankAccount";
+  if (target === "upiId") return "upiId";
+  if (target === "phoneNumber") return "phoneNumber";
+  if (target === "caseId") return "caseId";
+  if (target === "agentName") return "agentName";
+  if (target === "claimedOrg") return "claimedOrg";
+  return null;
+}
+
+function isTargetKnownOrExhausted(target, dialogState = {}) {
+  if (!target) return false;
+  const have = dialogState.have || {};
+  const askedCounts = dialogState.askedCounts || {};
+  const askedKey = getAskedCountKey(target);
+  const askedCount = askedKey ? askedCounts[askedKey] || 0 : 0;
+  return Boolean(have[target]) || askedCount >= 2;
+}
+
 function replyMentionsTarget(reply = "", target = "NONE") {
   const text = String(reply || "").toLowerCase();
   if (target === "NONE") return true;
-  if (target === "upiId") return /\bupi\b|\b@\b/.test(text);
+  if (target === "upiId") return /\bupi\b|@/.test(text);
   if (target === "bankAccount") return /\baccount\b|\bbank\b/.test(text);
   if (target === "phishingLink") return /\blink\b|\bwebsite\b|\burl\b|\bportal\b/.test(text);
   if (target === "phoneNumber") return /\bcall\b|\bcontact\b|\bnumber\b|\bhelpline\b/.test(text);
@@ -210,6 +359,24 @@ function forcedTargetFallbackReply(target = "NONE") {
     return "Which official organization name should I mention for this verification?";
   }
   return "";
+}
+
+function nonRepeatingFallbackReply(session) {
+  const variants = [
+    "Thanks, I noted that. Is there any other official detail I should keep for verification?",
+    "Noted. If there is any additional reference or contact detail, share it now.",
+    "Alright, I have what I need for now. I'll follow up shortly.",
+  ];
+  const previousUserMessages = (session?.messages || []).filter(
+    (msg) => msg.sender === "user",
+  );
+  const fallbackUsageCount = previousUserMessages.filter((msg) =>
+    /official detail|additional reference|follow up shortly|verify these details and get back/i.test(
+      msg.text || "",
+    ),
+  ).length;
+  const variantIndex = Math.min(fallbackUsageCount, variants.length - 1);
+  return variants[variantIndex];
 }
 
 export async function processMessage(payload) {
@@ -263,6 +430,7 @@ export async function processMessage(payload) {
 
   if (result.scamLikely) {
     let responseReply = null;
+    let exhaustedDialogFallback = false;
     if (normalizedMessage.sender === "scammer") {
       const inlineIntel = extractInlineIntel(normalizedMessage.text);
       if (hasInlineIntel(inlineIntel)) {
@@ -289,18 +457,44 @@ export async function processMessage(payload) {
       "agent_reply",
     );
 
-    const mergedTargets = new Set(agentReply.extractionTargets || []);
-    if (forcedTarget !== "NONE") mergedTargets.add(forcedTarget);
-    const normalizedAgentReply = {
-      ...agentReply,
-      extractionTargets: Array.from(mergedTargets),
-    };
-
+    const normalizedAgentReply = { ...agentReply };
     let finalReply = normalizedAgentReply.reply || "";
-    if (!replyMentionsTarget(finalReply, forcedTarget)) {
-      const fallback = forcedTargetFallbackReply(forcedTarget);
-      if (fallback) finalReply = fallback;
+    let replyTargets = inferExtractionTargetsFromReply(finalReply);
+
+    const blockedAskedTarget = replyTargets.find((target) =>
+      isTargetKnownOrExhausted(target, dialogState),
+    );
+    if (blockedAskedTarget) {
+      const fallbackTarget =
+        forcedTarget !== "NONE" && !isTargetKnownOrExhausted(forcedTarget, dialogState)
+          ? forcedTarget
+          : chooseForcedTarget(dialogState);
+      const fallbackReply =
+        fallbackTarget !== "NONE"
+          ? forcedTargetFallbackReply(fallbackTarget)
+          : nonRepeatingFallbackReply(refreshedSession);
+      if (fallbackReply) {
+        if (fallbackTarget === "NONE") {
+          exhaustedDialogFallback = true;
+        }
+        finalReply = fallbackReply;
+        replyTargets = inferExtractionTargetsFromReply(finalReply);
+      }
     }
+
+    if (forcedTarget !== "NONE" && !replyMentionsTarget(finalReply, forcedTarget)) {
+      const fallback = forcedTargetFallbackReply(forcedTarget);
+      if (fallback) {
+        finalReply = fallback;
+        replyTargets = inferExtractionTargetsFromReply(finalReply);
+      }
+    }
+
+    const mergedTargets = new Set([...replyTargets]);
+    if (forcedTarget !== "NONE" && replyMentionsTarget(finalReply, forcedTarget)) {
+      mergedTargets.add(forcedTarget);
+    }
+    normalizedAgentReply.extractionTargets = Array.from(mergedTargets);
 
     appendReply(sessionId, finalReply);
     normalizedAgentReply.reply = finalReply;
@@ -346,16 +540,51 @@ export async function processMessage(payload) {
       (updatedSession.extractedIntelligence.bankAccounts || []).length > 0;
 
     const hasAskedOrCapturedLink = hasLinkEvidence(updatedSession);
+    const primaryCapturedNow = hasAllPrimaryIntel && hasAskedOrCapturedLink;
+    updatePrimaryCaptureState(
+      updatedSession,
+      totalMessages,
+      scammerMessages,
+      primaryCapturedNow,
+    );
+
+    const captureTotal = updatedSession.primaryCaptureTotalMessages;
+    const captureScammer = updatedSession.primaryCaptureScammerMessages;
+    const postCaptureTotalMessages =
+      captureTotal === null ? 0 : totalMessages - captureTotal;
+    const postCaptureScammerMessages =
+      captureScammer === null ? 0 : scammerMessages - captureScammer;
+    const noNewIntelScammerTurns =
+      scammerMessages - (updatedSession.lastIntelGrowthScammerMessages || 0);
+
+    const stabilizationWindowReached =
+      captureTotal !== null &&
+      captureScammer !== null &&
+      postCaptureTotalMessages >= POST_PRIMARY_GRACE_TOTAL_MESSAGES &&
+      postCaptureScammerMessages >= POST_PRIMARY_GRACE_SCAMMER_MESSAGES;
+    const intelStalled =
+      noNewIntelScammerTurns >= NO_NEW_INTEL_SCAMMER_TURNS;
     const meetsEarlyStop =
-      hasExtractionRun && hasAllPrimaryIntel && hasAskedOrCapturedLink;
+      hasExtractionRun &&
+      primaryCapturedNow &&
+      stabilizationWindowReached &&
+      intelStalled;
 
     const hardStopReached =
       totalMessages >= MIN_TOTAL_MESSAGES + GRACE_MESSAGES;
+    const exhaustedDialogReady =
+      exhaustedDialogFallback &&
+      hasExtractionRun &&
+      hasAllPrimaryIntel &&
+      hasAskedOrCapturedLink &&
+      totalMessages >= Math.max(12, MIN_TOTAL_MESSAGES - 2) &&
+      scammerMessages >= Math.max(6, MIN_SCAMMER_MESSAGES - 2);
 
     const shouldEvaluateEnd =
       hardStopReached ||
       meetsEarlyStop ||
-      (meetsEndGate && hasAskedOrCapturedLink);
+      exhaustedDialogReady ||
+      (meetsEndGate && hasAskedOrCapturedLink && intelStalled);
 
     if (shouldEvaluateEnd) {
       const endPrompt = buildConversationEndPrompt({

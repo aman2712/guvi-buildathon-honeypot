@@ -26,6 +26,10 @@ export function getOrCreateSession(sessionId) {
       metadata: {},
       lastExtractedMessageCount: 0,
       extractionRuns: 0,
+      primaryCaptureTotalMessages: null,
+      primaryCaptureScammerMessages: null,
+      lastIntelFingerprint: "",
+      lastIntelGrowthScammerMessages: 0,
       endConversation: false,
       callbackSent: false,
       dialogState: {
@@ -95,6 +99,15 @@ function mergeUnique(target = [], incoming = []) {
   return Array.from(set);
 }
 
+function normalizeLink(value) {
+  if (!value || typeof value !== "string") return "";
+  let normalized = value.trim();
+  normalized = normalized.replace(/^[<([{"']+/, "");
+  normalized = normalized.replace(/[>)]}"]+$/, "");
+  normalized = normalized.replace(/[.,;:!?]+$/, "");
+  return normalized.trim();
+}
+
 function isLikelyBankAccount(value) {
   if (!value || typeof value !== "string") return false;
   const trimmed = value.trim();
@@ -123,12 +136,27 @@ function filterBankAccounts(list = []) {
 
 function isLikelyPhishingLink(value) {
   if (!value || typeof value !== "string") return false;
-  return /^https?:\/\/\S+$/i.test(value.trim());
+  const normalized = normalizeLink(value);
+  if (!normalized) return false;
+  return /^https?:\/\/\S+$/i.test(normalized);
 }
 
 function isLikelyUpiId(value) {
   if (!value || typeof value !== "string") return false;
-  return /^[a-z0-9._-]{2,}@[a-z0-9.-]{2,}$/i.test(value.trim());
+  const normalized = value.trim().replace(/[.,;:!?]+$/, "");
+  return /^[a-z0-9._-]{2,}@[a-z0-9.-]{2,}$/i.test(normalized);
+}
+
+function sanitizePhishingLinks(list = []) {
+  return list.map((item) => normalizeLink(item)).filter(isLikelyPhishingLink);
+}
+
+function sanitizeUpiIds(list = []) {
+  return list
+    .map((item) =>
+      typeof item === "string" ? item.trim().replace(/[.,;:!?]+$/, "") : "",
+    )
+    .filter(isLikelyUpiId);
 }
 
 export function updateIntelligence(sessionId, extractionResult) {
@@ -136,9 +164,12 @@ export function updateIntelligence(sessionId, extractionResult) {
   const intel = extractionResult?.extractedIntelligence || {};
   const sanitizedBankAccounts = filterBankAccounts(intel.bankAccounts || []);
   const rawPhishingLinks = intel.phishingLinks || [];
-  const sanitizedPhishingLinks = rawPhishingLinks.filter(isLikelyPhishingLink);
-  const reclassifiedUpiIds = rawPhishingLinks.filter(isLikelyUpiId);
-  const mergedUpiIds = [...(intel.upiIds || []), ...reclassifiedUpiIds];
+  const sanitizedPhishingLinks = sanitizePhishingLinks(rawPhishingLinks);
+  const reclassifiedUpiIds = sanitizeUpiIds(rawPhishingLinks);
+  const mergedUpiIds = [
+    ...sanitizeUpiIds(intel.upiIds || []),
+    ...reclassifiedUpiIds,
+  ];
 
   session.extractedIntelligence = {
     bankAccounts: mergeUnique(
