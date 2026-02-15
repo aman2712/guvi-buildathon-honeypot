@@ -10,6 +10,27 @@ AI-powered honeypot API for scam detection, multi-turn engagement, and intellige
 - Axios
 - In-memory session store (per `sessionId`)
 
+## Project Structure
+
+```text
+your-repo/
+├── README.md
+├── src/
+│   ├── main.js
+│   ├── controllers/
+│   ├── middleware/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
+│   ├── storage/
+│   └── utils/
+├── scripts/
+├── docs/
+├── package.json
+├── .env.example
+└── Procfile
+```
+
 ## API Endpoint
 
 - **Method:** `POST`

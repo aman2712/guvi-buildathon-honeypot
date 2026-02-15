@@ -1,0 +1,29 @@
+{
+  "generated_combo_1": {
+    "status": "success",
+    "scamDetected": true,
+    "totalMessagesExchanged": 17,
+    "extractedIntelligence": {
+      "bankAccounts": ["7788990011223344"],
+      "upiIds": ["verify.center@fakebank"],
+      "emailAddresses": [],
+      "phishingLinks": ["https://secure-verify.fakebank.example/auth"],
+      "phoneNumbers": ["+91-9123456789"],
+      "suspiciousKeywords": [
+        "urgent",
+        "verify",
+        "upi",
+        "locked",
+        "account",
+        "blocked",
+        "otp",
+        "suspension"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 17,
+      "engagementDurationSeconds": 48
+    },
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information. They impersonate a bank representative and request OTP for verification. Case IDs: FB-CASE-2026-4411 Names: Anita Sharma Claimed org: fakebank"
+  }
+}

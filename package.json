@@ -2,9 +2,9 @@
   "name": "guvi-hackathon-honeypot",
   "version": "1.0.0",
   "description": "A solution for problem 2 of GUVI AI India Impact Buildathon",
-  "main": "index.js",
+  "main": "src/main.js",
   "scripts": {
-    "start": "node index.js",
+    "start": "node src/main.js",
     "eval:run": "node scripts/evaluator/runEvaluation.js",
     "eval:score": "node scripts/evaluator/scoreFinalOutputs.js"
   },
