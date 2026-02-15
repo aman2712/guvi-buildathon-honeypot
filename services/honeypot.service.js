@@ -11,11 +11,12 @@ import {
   intelligenceExtractionSchema,
 } from "../models/llmSchemas.js";
 import {
-  appendMessage,
+  appendMessageIfMissing,
   appendReply,
   getOrCreateSession,
   getTimingStats,
   markExtractionRun,
+  reconcileSessionMessages,
   recordResponseTime,
   setCallbackSent,
   setConversationEnded,
@@ -40,9 +41,62 @@ const POST_PRIMARY_GRACE_SCAMMER_MESSAGES = Number(
 const NO_NEW_INTEL_SCAMMER_TURNS = Number(
   process.env.NO_NEW_INTEL_SCAMMER_TURNS || 2,
 );
+const MAX_SCAMMER_TURNS = Number(process.env.MAX_SCAMMER_TURNS || 10);
 
 function countScammerMessages(messages = []) {
   return messages.filter((msg) => msg.sender === "scammer").length;
+}
+
+function mergeUniqueStrings(target = [], incoming = []) {
+  return Array.from(new Set([...(target || []), ...(incoming || [])].filter(Boolean)));
+}
+
+function logLlmFallback(stage, sessionId, error) {
+  console.error(
+    `[LLM_FALLBACK] stage=${stage} sessionId=${sessionId} reason=${error?.message || "unknown"}`,
+  );
+}
+
+function buildRuleBasedScamAssessment(messageText = "") {
+  const text = String(messageText || "");
+  const lower = text.toLowerCase();
+  const keywordRules = [
+    { keyword: "urgent", code: "URGENCY" },
+    { keyword: "otp", code: "CREDENTIAL_REQUEST" },
+    { keyword: "verify", code: "OTHER" },
+    { keyword: "account blocked", code: "THREAT" },
+    { keyword: "blocked", code: "THREAT" },
+    { keyword: "upi", code: "PAYMENT_REQUEST" },
+    { keyword: "bank", code: "PAYMENT_REQUEST" },
+    { keyword: "password", code: "CREDENTIAL_REQUEST" },
+    { keyword: "pin", code: "CREDENTIAL_REQUEST" },
+    { keyword: "http://", code: "LINK" },
+    { keyword: "https://", code: "LINK" },
+    { keyword: "sbi", code: "IMPERSONATION" },
+    { keyword: "customer care", code: "IMPERSONATION" },
+  ];
+
+  const found = keywordRules.filter((item) => lower.includes(item.keyword));
+  const reasonCodes = Array.from(new Set(found.map((item) => item.code)));
+  const suspiciousKeywords = Array.from(new Set(found.map((item) => item.keyword)));
+  const triggerPhrases = suspiciousKeywords;
+  const score = found.length;
+  const scamLikely = score >= 2;
+
+  let scamType = "unknown";
+  if (lower.includes("upi")) scamType = "upi_fraud";
+  else if (lower.includes("http://") || lower.includes("https://")) scamType = "phishing";
+  else if (lower.includes("bank") || lower.includes("otp")) scamType = "bank_fraud";
+  else if (scamLikely) scamType = "other";
+
+  return {
+    scamLikely,
+    scamType,
+    confidence: scamLikely ? Math.min(0.95, 0.45 + score * 0.08) : 0.25,
+    triggerPhrases,
+    suspiciousKeywords,
+    reasonCodes: reasonCodes.length > 0 ? reasonCodes : ["OTHER"],
+  };
 }
 
 function hasPrimaryIntel(extractedIntelligence) {
@@ -65,6 +119,7 @@ function buildIntelFingerprint(session) {
   return JSON.stringify({
     bankAccounts: uniqueSorted(intel.bankAccounts),
     upiIds: uniqueSorted(intel.upiIds),
+    emailAddresses: uniqueSorted(intel.emailAddresses),
     phishingLinks: uniqueSorted(intel.phishingLinks),
     phoneNumbers: uniqueSorted(intel.phoneNumbers),
     caseIds: uniqueSorted(intel.caseIds),
@@ -93,13 +148,53 @@ function updatePrimaryCaptureState(
   }
 }
 
+function normalizeHandle(value = "") {
+  return String(value || "").trim().replace(/[.,;:!?]+$/, "");
+}
+
+function classifyHandleByContext(handle = "", source = "") {
+  const normalized = normalizeHandle(handle);
+  if (!/^[a-z0-9._%+-]{2,}@[a-z0-9.-]{2,}$/i.test(normalized)) {
+    return "unknown";
+  }
+
+  const loweredSource = String(source || "").toLowerCase();
+  const loweredHandle = normalized.toLowerCase();
+  const index = loweredSource.indexOf(loweredHandle);
+  const windowText =
+    index >= 0
+      ? loweredSource.slice(Math.max(0, index - 30), index + loweredHandle.length + 30)
+      : loweredSource;
+
+  if (/\bemail|mail\b/i.test(windowText)) return "email";
+  if (/\bupi|vpa|handle|gpay|phonepe|paytm|bhim\b/i.test(windowText)) {
+    return "upi";
+  }
+
+  const domain = (normalized.split("@")[1] || "").toLowerCase();
+  if (!/\.[a-z]{2,}$/i.test(domain)) return "upi";
+  if (/(upi|pay|ok|ybl|ibl|axl|oksbi|okhdfc|okicici|okaxis|okbizaxis|apl)/i.test(domain)) {
+    return "upi";
+  }
+  return "email";
+}
+
 function extractInlineIntel(text = "") {
   const source = typeof text === "string" ? text : "";
   const lower = source.toLowerCase();
 
-  const upiIds = Array.from(
-    new Set(source.match(/\b[a-z0-9._-]{2,}@[a-z][a-z0-9.-]{1,}\b/gi) || []),
+  const handleCandidates = Array.from(
+    new Set(
+      source.match(/\b[a-z0-9._%+-]{2,}@[a-z0-9.-]{2,}\b/gi) || [],
+    ),
   );
+  const upiIds = [];
+  const emailAddresses = [];
+  for (const handle of handleCandidates) {
+    const type = classifyHandleByContext(handle, source);
+    if (type === "upi") upiIds.push(normalizeHandle(handle));
+    if (type === "email") emailAddresses.push(normalizeHandle(handle));
+  }
 
   const phishingLinks = Array.from(
     new Set(source.match(/https?:\/\/\S+/gi) || []),
@@ -143,6 +238,7 @@ function extractInlineIntel(text = "") {
   return {
     bankAccounts,
     upiIds,
+    emailAddresses,
     phishingLinks,
     phoneNumbers,
     suspiciousKeywords,
@@ -156,11 +252,37 @@ function hasInlineIntel(intel = {}) {
   return (
     (intel.bankAccounts || []).length > 0 ||
     (intel.upiIds || []).length > 0 ||
+    (intel.emailAddresses || []).length > 0 ||
     (intel.phishingLinks || []).length > 0 ||
     (intel.phoneNumbers || []).length > 0 ||
     (intel.suspiciousKeywords || []).length > 0 ||
     (intel.caseIds || []).length > 0
   );
+}
+
+function isIntelligenceEmpty(session) {
+  const intel = session?.extractedIntelligence || {};
+  return (
+    (intel.bankAccounts || []).length === 0 &&
+    (intel.upiIds || []).length === 0 &&
+    (intel.emailAddresses || []).length === 0 &&
+    (intel.phishingLinks || []).length === 0 &&
+    (intel.phoneNumbers || []).length === 0 &&
+    (intel.suspiciousKeywords || []).length === 0 &&
+    (intel.caseIds || []).length === 0 &&
+    (intel.staffIds || []).length === 0 &&
+    (intel.agentNames || []).length === 0
+  );
+}
+
+function hydrateInlineIntelFromHistory(sessionId, messages = []) {
+  for (const message of messages || []) {
+    if (message?.sender !== "scammer") continue;
+    const inlineIntel = extractInlineIntel(message?.text || "");
+    if (hasInlineIntel(inlineIntel)) {
+      updateIntelligence(sessionId, { extractedIntelligence: inlineIntel });
+    }
+  }
 }
 
 function extractCaseIdsFromText(text = "") {
@@ -187,10 +309,18 @@ function deriveHaveFromMessages(messages = []) {
     .map((msg) => msg.text || "")
     .join("\n");
   const normalized = String(scammerText || "");
+  const handleCandidates = Array.from(
+    new Set(
+      normalized.match(/\b[a-z0-9._%+-]{2,}@[a-z0-9.-]{2,}\b/gi) || [],
+    ),
+  );
+  const upiDetected = handleCandidates.some(
+    (value) => classifyHandleByContext(value, normalized) === "upi",
+  );
 
   return {
     phoneNumber: /(?:\+?\d[\d\s-]{8,}\d)/.test(normalized),
-    upiId: /\b[a-z0-9._-]{2,}@[a-z][a-z0-9.-]{1,}\b/i.test(normalized),
+    upiId: upiDetected,
     bankAccount:
       /\b(?:account|acct|a\/c|bank)\b[\s\S]{0,24}\b\d{9,18}\b/i.test(
         normalized,
@@ -379,10 +509,61 @@ function nonRepeatingFallbackReply(session) {
   return variants[variantIndex];
 }
 
+function getEngagementDurationSeconds(session) {
+  const startedAtMs = Number(session?.startedAtMs || 0);
+  if (!startedAtMs) return 0;
+  const durationSeconds = Math.floor((Date.now() - startedAtMs) / 1000);
+  return durationSeconds > 0 ? durationSeconds : 1;
+}
+
+function buildFallbackExtractionFromConversation(messages = []) {
+  const aggregate = {
+    bankAccounts: [],
+    upiIds: [],
+    emailAddresses: [],
+    phishingLinks: [],
+    phoneNumbers: [],
+    suspiciousKeywords: [],
+    caseIds: [],
+    staffIds: [],
+    agentNames: [],
+  };
+
+  for (const message of messages || []) {
+    if (message?.sender !== "scammer") continue;
+    const intel = extractInlineIntel(message?.text || "");
+    aggregate.bankAccounts = mergeUniqueStrings(aggregate.bankAccounts, intel.bankAccounts);
+    aggregate.upiIds = mergeUniqueStrings(aggregate.upiIds, intel.upiIds);
+    aggregate.emailAddresses = mergeUniqueStrings(
+      aggregate.emailAddresses,
+      intel.emailAddresses,
+    );
+    aggregate.phishingLinks = mergeUniqueStrings(aggregate.phishingLinks, intel.phishingLinks);
+    aggregate.phoneNumbers = mergeUniqueStrings(aggregate.phoneNumbers, intel.phoneNumbers);
+    aggregate.suspiciousKeywords = mergeUniqueStrings(
+      aggregate.suspiciousKeywords,
+      intel.suspiciousKeywords,
+    );
+    aggregate.caseIds = mergeUniqueStrings(aggregate.caseIds, intel.caseIds);
+  }
+
+  return {
+    extractedIntelligence: aggregate,
+    scamSignals: {
+      claimedOrganization: null,
+      claimedDepartment: null,
+      scamType: "unknown",
+      tactics: [],
+    },
+    agentNotes:
+      "Fallback extraction used due to temporary model failure. Intelligence captured from regex parsing.",
+  };
+}
+
 export async function processMessage(payload) {
   console.log("[Request] made");
   const startTime = Date.now();
-  const { message, sessionId, metadata } = payload || {};
+  const { message, sessionId, metadata, conversationHistory } = payload || {};
 
   if (!sessionId || typeof sessionId !== "string") {
     console.error("[Request] Missing or invalid sessionId");
@@ -407,7 +588,13 @@ export async function processMessage(payload) {
   const session = getOrCreateSession(sessionId);
   if (session.callbackSent) {
     console.error("[Session] Callback already sent, hard stop");
-    const response = { statusCode: 200, body: { status: "success", reply: "" } };
+    const response = {
+      statusCode: 200,
+      body: {
+        status: "success",
+        reply: "Alright, I have what I need for now. I'll follow up shortly.",
+      },
+    };
     recordResponseTime(sessionId, Date.now() - startTime);
     return response;
   }
@@ -419,12 +606,28 @@ export async function processMessage(payload) {
   };
 
   updateMetadata(sessionId, metadata);
-  appendMessage(sessionId, normalizedMessage);
+  const { changed: historyChanged } = reconcileSessionMessages(
+    sessionId,
+    conversationHistory,
+  );
+  appendMessageIfMissing(sessionId, normalizedMessage);
+
+  if (historyChanged) {
+    const syncedSession = getOrCreateSession(sessionId);
+    if (isIntelligenceEmpty(syncedSession)) {
+      hydrateInlineIntelFromHistory(sessionId, syncedSession.messages);
+    }
+  }
 
   let result = session.scamAssessment;
   if (!result) {
     const prompt = buildClassifierPrompt(normalizedMessage.text);
-    result = await generateJson(prompt);
+    try {
+      result = await generateJson(prompt);
+    } catch (error) {
+      logLlmFallback("scam_classification", sessionId, error);
+      result = buildRuleBasedScamAssessment(normalizedMessage.text);
+    }
     setInitialScamAssessment(sessionId, result);
   }
 
@@ -451,11 +654,27 @@ export async function processMessage(payload) {
       dialogState,
       forcedTarget,
     });
-    const agentReply = await generateJson(
-      agentPrompt,
-      agentReplySchema,
-      "agent_reply",
-    );
+    let agentReply;
+    try {
+      agentReply = await generateJson(
+        agentPrompt,
+        agentReplySchema,
+        "agent_reply",
+      );
+    } catch (error) {
+      logLlmFallback("agent_reply", sessionId, error);
+      const fallbackTarget =
+        forcedTarget !== "NONE" ? forcedTarget : chooseForcedTarget(dialogState);
+      const fallbackReply =
+        fallbackTarget !== "NONE"
+          ? forcedTargetFallbackReply(fallbackTarget)
+          : "Thanks, I noted that. Is there any other official detail I should keep for verification?";
+      agentReply = {
+        reply: fallbackReply,
+        intentTag: fallbackTarget === "NONE" ? "STALL" : "ASK_CLARIFY",
+        extractionTargets: fallbackTarget === "NONE" ? [] : [fallbackTarget],
+      };
+    }
 
     const normalizedAgentReply = { ...agentReply };
     let finalReply = normalizedAgentReply.reply || "";
@@ -512,11 +731,17 @@ export async function processMessage(payload) {
         conversation: updatedSession.messages,
         metadata: updatedSession.metadata,
       });
-      const extraction = await generateJson(
-        extractPrompt,
-        intelligenceExtractionSchema,
-        "intelligence_extraction",
-      );
+      let extraction;
+      try {
+        extraction = await generateJson(
+          extractPrompt,
+          intelligenceExtractionSchema,
+          "intelligence_extraction",
+        );
+      } catch (error) {
+        logLlmFallback("intelligence_extraction", sessionId, error);
+        extraction = buildFallbackExtractionFromConversation(updatedSession.messages);
+      }
       updateIntelligence(sessionId, extraction);
       markExtractionRun(sessionId);
     }
@@ -570,8 +795,12 @@ export async function processMessage(payload) {
       stabilizationWindowReached &&
       intelStalled;
 
-    const hardStopReached =
-      totalMessages >= MIN_TOTAL_MESSAGES + GRACE_MESSAGES;
+    const hardStopMessageCap = Math.min(
+      MIN_TOTAL_MESSAGES + GRACE_MESSAGES,
+      MAX_SCAMMER_TURNS * 2,
+    );
+    const hardStopReached = totalMessages >= hardStopMessageCap;
+    const maxScammerTurnsReached = scammerMessages >= MAX_SCAMMER_TURNS;
     const exhaustedDialogReady =
       exhaustedDialogFallback &&
       hasExtractionRun &&
@@ -582,9 +811,10 @@ export async function processMessage(payload) {
 
     const shouldEvaluateEnd =
       hardStopReached ||
+      maxScammerTurnsReached ||
       meetsEarlyStop ||
       exhaustedDialogReady ||
-      (meetsEndGate && hasAskedOrCapturedLink && intelStalled);
+      (meetsEndGate && hasAskedOrCapturedLink);
 
     if (shouldEvaluateEnd) {
       const endPrompt = buildConversationEndPrompt({
@@ -593,13 +823,35 @@ export async function processMessage(payload) {
         scamAssessment: updatedSession.scamAssessment,
         extractedIntelligence: updatedSession.extractedIntelligence,
       });
-      const endDecision = hardStopReached
-        ? { endConversation: true, reason: "Hard stop reached" }
-        : await generateJson(
+      let endDecision;
+      if (hardStopReached || maxScammerTurnsReached) {
+        endDecision = {
+          endConversation: true,
+          reason: maxScammerTurnsReached
+            ? "Max scammer turns reached"
+            : "Hard stop reached",
+        };
+      } else {
+        try {
+          endDecision = await generateJson(
             endPrompt,
             conversationEndSchema,
             "conversation_end",
           );
+        } catch (error) {
+          logLlmFallback("conversation_end", sessionId, error);
+          endDecision = {
+            endConversation: Boolean(
+              meetsEarlyStop ||
+                exhaustedDialogReady ||
+                meetsEndGate ||
+                maxScammerTurnsReached ||
+                hardStopReached,
+            ),
+            reason: "Fallback end decision after model failure",
+          };
+        }
+      }
 
       if (endDecision.endConversation) {
         setConversationEnded(sessionId, true);
@@ -610,11 +862,19 @@ export async function processMessage(payload) {
             conversation: endSession.messages,
             metadata: endSession.metadata,
           });
-          const finalExtraction = await generateJson(
-            finalExtractPrompt,
-            intelligenceExtractionSchema,
-            "intelligence_extraction_final",
-          );
+          let finalExtraction;
+          try {
+            finalExtraction = await generateJson(
+              finalExtractPrompt,
+              intelligenceExtractionSchema,
+              "intelligence_extraction_final",
+            );
+          } catch (error) {
+            logLlmFallback("intelligence_extraction_final", sessionId, error);
+            finalExtraction = buildFallbackExtractionFromConversation(
+              endSession.messages,
+            );
+          }
           updateIntelligence(sessionId, finalExtraction);
           markExtractionRun(sessionId);
         }
@@ -628,6 +888,8 @@ export async function processMessage(payload) {
           const payloadIntel = {
             bankAccounts: endSession.extractedIntelligence.bankAccounts || [],
             upiIds: endSession.extractedIntelligence.upiIds || [],
+            emailAddresses:
+              endSession.extractedIntelligence.emailAddresses || [],
             phishingLinks: endSession.extractedIntelligence.phishingLinks || [],
             phoneNumbers: endSession.extractedIntelligence.phoneNumbers || [],
             suspiciousKeywords:
@@ -662,16 +924,29 @@ export async function processMessage(payload) {
             );
           }
 
+          const engagementMetrics = {
+            totalMessagesExchanged: endSession.messages.length,
+            engagementDurationSeconds: getEngagementDurationSeconds(endSession),
+          };
+
           const payload = {
+            status: "success",
             sessionId,
             scamDetected: true,
             totalMessagesExchanged: endSession.messages.length,
             extractedIntelligence: payloadIntel,
+            engagementMetrics,
             agentNotes: noteParts.join(" "),
           };
-            await sendFinalResult(payload);
-            setCallbackSent(sessionId, true);
-            setConversationEnded(sessionId, true);
+            try {
+              await sendFinalResult(payload);
+              setCallbackSent(sessionId, true);
+              setConversationEnded(sessionId, true);
+            } catch (error) {
+              console.error(
+                `[GUVI Callback] Non-fatal failure for sessionId=${sessionId}: ${error?.message || "unknown"}`,
+              );
+            }
 
             const timing = getTimingStats(sessionId);
             console.log("[Timing] Response times (ms):", timing.times);
@@ -690,7 +965,11 @@ export async function processMessage(payload) {
 
   const response = {
     statusCode: 200,
-    body: { message: "Message is not likely a scam." },
+    body: {
+      status: "success",
+      reply: "",
+      message: "Message is not likely a scam.",
+    },
   };
   recordResponseTime(sessionId, Date.now() - startTime);
   return response;

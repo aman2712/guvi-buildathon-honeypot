@@ -1,0 +1,64 @@
+[
+  {
+    "scenarioId": "bank_fraud",
+    "name": "Bank Fraud Detection",
+    "scamType": "bank_fraud",
+    "weight": 35,
+    "initialMessage": "URGENT: Your SBI account has been compromised. Your account will be blocked in 2 hours. Share your account number and OTP immediately to verify your identity.",
+    "metadata": {
+      "channel": "SMS",
+      "language": "English",
+      "locale": "IN"
+    },
+    "maxTurns": 10,
+    "fakeData": {
+      "bankAccount": "1234567890123456",
+      "upiId": "scammer.fraud@fakebank",
+      "phoneNumber": "+91-9876543210",
+      "phishingLink": "https://secure-sbi.example/verify",
+      "emailAddress": "fraud.team@fakebank.example",
+      "caseId": "SBI-CASE-2026-9876",
+      "agentName": "Mr. Rajesh Kumar"
+    }
+  },
+  {
+    "scenarioId": "upi_fraud",
+    "name": "UPI Fraud Multi-turn",
+    "scamType": "upi_fraud",
+    "weight": 35,
+    "initialMessage": "You have won cashback of Rs. 5000. Verify your UPI now to claim within 5 minutes.",
+    "metadata": {
+      "channel": "WhatsApp",
+      "language": "English",
+      "locale": "IN"
+    },
+    "maxTurns": 10,
+    "fakeData": {
+      "upiId": "cashback.claim@fakeupi",
+      "phoneNumber": "+91-8765432109",
+      "phishingLink": "https://claim-now.example/cashback",
+      "emailAddress": "offers@cashback-center.example",
+      "caseId": "CBK-2026-4421",
+      "agentName": "Neha Verma"
+    }
+  },
+  {
+    "scenarioId": "phishing",
+    "name": "Phishing Link Detection",
+    "scamType": "phishing",
+    "weight": 30,
+    "initialMessage": "Exclusive offer ends tonight. Confirm your account at http://amaz0n-deals.fake-site.com/claim?id=12345",
+    "metadata": {
+      "channel": "Email",
+      "language": "English",
+      "locale": "IN"
+    },
+    "maxTurns": 10,
+    "fakeData": {
+      "phishingLink": "http://amaz0n-deals.fake-site.com/claim?id=12345",
+      "phoneNumber": "+91-9000011111",
+      "emailAddress": "offers@fake-amazon-deals.com",
+      "agentName": "Support Desk"
+    }
+  }
+]

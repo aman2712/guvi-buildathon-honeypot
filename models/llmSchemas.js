@@ -95,6 +95,7 @@ export const intelligenceExtractionSchema = {
       properties: {
         bankAccounts: { type: "array", items: { type: "string" } },
         upiIds: { type: "array", items: { type: "string" } },
+        emailAddresses: { type: "array", items: { type: "string" } },
         phishingLinks: { type: "array", items: { type: "string" } },
         phoneNumbers: { type: "array", items: { type: "string" } },
         suspiciousKeywords: { type: "array", items: { type: "string" } },
@@ -105,6 +106,7 @@ export const intelligenceExtractionSchema = {
       required: [
         "bankAccounts",
         "upiIds",
+        "emailAddresses",
         "phishingLinks",
         "phoneNumbers",
         "suspiciousKeywords",

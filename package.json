@@ -4,7 +4,9 @@
   "description": "A solution for problem 2 of GUVI AI India Impact Buildathon",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "eval:run": "node scripts/evaluator/runEvaluation.js",
+    "eval:score": "node scripts/evaluator/scoreFinalOutputs.js"
   },
   "author": "Md Aman Khan",
   "license": "ISC",

@@ -1,5 +1,52 @@
 const sessions = new Map();
 
+function normalizeTimestamp(timestamp) {
+  if (timestamp == null) return new Date().toISOString();
+
+  if (typeof timestamp === "number" && Number.isFinite(timestamp)) {
+    const asDate = new Date(timestamp);
+    return Number.isNaN(asDate.getTime())
+      ? new Date().toISOString()
+      : asDate.toISOString();
+  }
+
+  if (typeof timestamp === "string") {
+    const trimmed = timestamp.trim();
+    if (!trimmed) return new Date().toISOString();
+
+    if (/^\d{10,13}$/.test(trimmed)) {
+      const numeric = Number(trimmed);
+      const millis = trimmed.length === 10 ? numeric * 1000 : numeric;
+      const asDate = new Date(millis);
+      return Number.isNaN(asDate.getTime())
+        ? new Date().toISOString()
+        : asDate.toISOString();
+    }
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString();
+    }
+  }
+
+  return new Date().toISOString();
+}
+
+function normalizeMessage(message = {}, fallbackSender = "scammer") {
+  const sender =
+    message?.sender === "user" || message?.sender === "scammer"
+      ? message.sender
+      : fallbackSender;
+  const text = typeof message?.text === "string" ? message.text : "";
+  const timestamp = normalizeTimestamp(message?.timestamp);
+
+  return { sender, text, timestamp };
+}
+
+function messageKey(message = {}) {
+  return `${message.sender || ""}|${message.text || ""}|${message.timestamp || ""}`;
+}
+
 export function getOrCreateSession(sessionId) {
   if (!sessions.has(sessionId)) {
     sessions.set(sessionId, {
@@ -9,6 +56,7 @@ export function getOrCreateSession(sessionId) {
       extractedIntelligence: {
         bankAccounts: [],
         upiIds: [],
+        emailAddresses: [],
         phishingLinks: [],
         phoneNumbers: [],
         suspiciousKeywords: [],
@@ -24,6 +72,7 @@ export function getOrCreateSession(sessionId) {
       },
       agentNotes: "",
       metadata: {},
+      startedAtMs: Date.now(),
       lastExtractedMessageCount: 0,
       extractionRuns: 0,
       primaryCaptureTotalMessages: null,
@@ -55,12 +104,63 @@ export function getOrCreateSession(sessionId) {
 
 export function appendMessage(sessionId, message) {
   const session = getOrCreateSession(sessionId);
-  session.messages.push({
-    sender: message.sender || "scammer",
-    text: message.text,
-    timestamp: message.timestamp || new Date().toISOString(),
-  });
+  const normalized = normalizeMessage(message, message?.sender || "scammer");
+  session.messages.push(normalized);
   return session;
+}
+
+export function appendMessageIfMissing(sessionId, message) {
+  const session = getOrCreateSession(sessionId);
+  const normalized = normalizeMessage(message, message?.sender || "scammer");
+  if (!normalized.text.trim()) {
+    return { session, appended: false };
+  }
+
+  const key = messageKey(normalized);
+  const alreadyExists = session.messages.some((item) => messageKey(item) === key);
+  if (!alreadyExists) {
+    session.messages.push(normalized);
+  }
+  return { session, appended: !alreadyExists };
+}
+
+export function reconcileSessionMessages(sessionId, conversationHistory = []) {
+  const session = getOrCreateSession(sessionId);
+  if (!Array.isArray(conversationHistory)) {
+    return { session, changed: false };
+  }
+
+  const normalizedHistory = [];
+  const seen = new Set();
+  for (const item of conversationHistory) {
+    const normalized = normalizeMessage(item, item?.sender || "scammer");
+    if (!normalized.text.trim()) continue;
+    const key = messageKey(normalized);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    normalizedHistory.push(normalized);
+  }
+
+  const existing = session.messages || [];
+  let changed = existing.length !== normalizedHistory.length;
+  if (!changed) {
+    for (let index = 0; index < existing.length; index += 1) {
+      if (messageKey(existing[index]) !== messageKey(normalizedHistory[index])) {
+        changed = true;
+        break;
+      }
+    }
+  }
+
+  if (changed) {
+    session.messages = normalizedHistory;
+    session.lastExtractedMessageCount = Math.min(
+      session.lastExtractedMessageCount || 0,
+      session.messages.length,
+    );
+  }
+
+  return { session, changed };
 }
 
 export function appendReply(sessionId, replyText) {
@@ -141,10 +241,40 @@ function isLikelyPhishingLink(value) {
   return /^https?:\/\/\S+$/i.test(normalized);
 }
 
+function normalizeHandle(value) {
+  if (!value || typeof value !== "string") return "";
+  return value.trim().replace(/[.,;:!?]+$/, "");
+}
+
+function hasEmailTld(domain = "") {
+  return /\.[a-z]{2,}$/i.test(domain);
+}
+
+function hasUpiDomainHint(domain = "") {
+  return /(upi|pay|ok|ybl|ibl|axl|oksbi|okhdfc|okicici|okaxis|okbizaxis|apl)/i.test(
+    domain,
+  );
+}
+
+function classifyHandle(value) {
+  const normalized = normalizeHandle(value);
+  if (!/^[a-z0-9._%+-]{2,}@[a-z0-9.-]{2,}$/i.test(normalized)) {
+    return "unknown";
+  }
+
+  const domain = (normalized.split("@")[1] || "").toLowerCase();
+  if (!domain) return "unknown";
+  if (!hasEmailTld(domain)) return "upi";
+  if (hasUpiDomainHint(domain)) return "upi";
+  return "email";
+}
+
 function isLikelyUpiId(value) {
-  if (!value || typeof value !== "string") return false;
-  const normalized = value.trim().replace(/[.,;:!?]+$/, "");
-  return /^[a-z0-9._-]{2,}@[a-z0-9.-]{2,}$/i.test(normalized);
+  return classifyHandle(value) === "upi";
+}
+
+function isLikelyEmailAddress(value) {
+  return classifyHandle(value) === "email";
 }
 
 function sanitizePhishingLinks(list = []) {
@@ -153,10 +283,32 @@ function sanitizePhishingLinks(list = []) {
 
 function sanitizeUpiIds(list = []) {
   return list
-    .map((item) =>
-      typeof item === "string" ? item.trim().replace(/[.,;:!?]+$/, "") : "",
-    )
+    .map((item) => normalizeHandle(item))
     .filter(isLikelyUpiId);
+}
+
+function sanitizeEmailAddresses(list = []) {
+  return list
+    .map((item) => normalizeHandle(item))
+    .filter(isLikelyEmailAddress);
+}
+
+function splitHandlesByType(list = []) {
+  const upiIds = [];
+  const emailAddresses = [];
+
+  for (const item of list || []) {
+    const normalized = normalizeHandle(item);
+    if (!normalized) continue;
+    const handleType = classifyHandle(normalized);
+    if (handleType === "upi") upiIds.push(normalized);
+    if (handleType === "email") emailAddresses.push(normalized);
+  }
+
+  return {
+    upiIds: sanitizeUpiIds(upiIds),
+    emailAddresses: sanitizeEmailAddresses(emailAddresses),
+  };
 }
 
 export function updateIntelligence(sessionId, extractionResult) {
@@ -165,10 +317,18 @@ export function updateIntelligence(sessionId, extractionResult) {
   const sanitizedBankAccounts = filterBankAccounts(intel.bankAccounts || []);
   const rawPhishingLinks = intel.phishingLinks || [];
   const sanitizedPhishingLinks = sanitizePhishingLinks(rawPhishingLinks);
-  const reclassifiedUpiIds = sanitizeUpiIds(rawPhishingLinks);
+  const handlesFromPhishingLinks = splitHandlesByType(rawPhishingLinks);
+  const handlesFromUpiIds = splitHandlesByType(intel.upiIds || []);
+  const handlesFromEmails = splitHandlesByType(intel.emailAddresses || []);
   const mergedUpiIds = [
-    ...sanitizeUpiIds(intel.upiIds || []),
-    ...reclassifiedUpiIds,
+    ...handlesFromUpiIds.upiIds,
+    ...handlesFromEmails.upiIds,
+    ...handlesFromPhishingLinks.upiIds,
+  ];
+  const mergedEmailAddresses = [
+    ...handlesFromEmails.emailAddresses,
+    ...handlesFromUpiIds.emailAddresses,
+    ...handlesFromPhishingLinks.emailAddresses,
   ];
 
   session.extractedIntelligence = {
@@ -177,6 +337,10 @@ export function updateIntelligence(sessionId, extractionResult) {
       sanitizedBankAccounts,
     ),
     upiIds: mergeUnique(session.extractedIntelligence.upiIds, mergedUpiIds),
+    emailAddresses: mergeUnique(
+      session.extractedIntelligence.emailAddresses,
+      mergedEmailAddresses,
+    ),
     phishingLinks: mergeUnique(
       session.extractedIntelligence.phishingLinks,
       sanitizedPhishingLinks,

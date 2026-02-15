@@ -132,6 +132,7 @@ OUTPUT REQUIREMENTS:
   "extractedIntelligence": {
     "bankAccounts": string[],
     "upiIds": string[],
+    "emailAddresses": string[],
     "phishingLinks": string[],
     "phoneNumbers": string[],
     "suspiciousKeywords": string[],
@@ -152,6 +153,7 @@ EXTRACTION RULES:
 - Only include items that appear verbatim in messages.
 - bankAccounts: include account-like strings (even partially masked) exactly as written.
 - upiIds: include handles like "name@upi" exactly as written.
+- emailAddresses: include email addresses exactly as written.
 - phishingLinks: include URLs exactly as written.
 - phoneNumbers: include phone numbers exactly as written.
 - suspiciousKeywords: return normalized lowercased phrases actually present (e.g., "urgent", "verify", "account blocked", "kyc", "upi", "otp").
