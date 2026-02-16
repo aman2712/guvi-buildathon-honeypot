@@ -209,7 +209,7 @@ function normalizeLink(value) {
   return normalized.trim();
 }
 
-function isLikelyBankAccount(value) {
+function isLikelyBankAccount(value, knownPhoneDigits = new Set()) {
   if (!value || typeof value !== "string") return false;
   const trimmed = value.trim();
   if (!trimmed) return false;
@@ -224,15 +224,31 @@ function isLikelyBankAccount(value) {
     return false;
   }
 
-  const digitCount = (trimmed.match(/\d/g) || []).length;
+  const digits = digitsOnly(trimmed);
+  const digitCount = digits.length;
   const maskCount = (trimmed.match(/[Xx*]/g) || []).length;
 
+  if (knownPhoneDigits.has(digits)) return false;
+
+  // Exclude values that look like phone numbers to avoid cross-typing.
+  if (
+    maskCount === 0 &&
+    digitCount >= 10 &&
+    digitCount <= 13 &&
+    /^\+?\d[\d\s-]*$/.test(trimmed)
+  ) {
+    return false;
+  }
+
   // Accept if numeric length looks like an account, or heavily masked.
-  return (digitCount >= 9 && digitCount <= 18) || maskCount >= 4;
+  return (digitCount >= 11 && digitCount <= 18) || maskCount >= 4;
 }
 
-function filterBankAccounts(list = []) {
-  return list.filter((item) => isLikelyBankAccount(item));
+function filterBankAccounts(list = [], knownPhoneNumbers = []) {
+  const knownPhoneDigits = new Set(
+    (knownPhoneNumbers || []).map((item) => digitsOnly(item)).filter(Boolean),
+  );
+  return list.filter((item) => isLikelyBankAccount(item, knownPhoneDigits));
 }
 
 function isLikelyPhishingLink(value) {
@@ -245,6 +261,19 @@ function isLikelyPhishingLink(value) {
 function normalizeHandle(value) {
   if (!value || typeof value !== "string") return "";
   return value.trim().replace(/[.,;:!?]+$/, "");
+}
+
+function digitsOnly(value = "") {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function sanitizePhoneToken(value) {
+  if (!value || typeof value !== "string") return "";
+  return value
+    .trim()
+    .replace(/^[<([{"']+/, "")
+    .replace(/[>)]}"]+$/, "")
+    .replace(/[.,;:!?]+$/, "");
 }
 
 function hasEmailTld(domain = "") {
@@ -294,6 +323,25 @@ function sanitizeEmailAddresses(list = []) {
     .filter(isLikelyEmailAddress);
 }
 
+function sanitizePhoneNumbers(list = [], knownBankAccounts = []) {
+  const knownBankDigits = new Set(
+    (knownBankAccounts || []).map((item) => digitsOnly(item)).filter(Boolean),
+  );
+  const results = [];
+
+  for (const item of list || []) {
+    const normalized = sanitizePhoneToken(item);
+    if (!normalized) continue;
+    const digits = digitsOnly(normalized);
+    if (digits.length < 10 || digits.length > 13) continue;
+    if (knownBankDigits.has(digits)) continue;
+    if (!/^\+?\d[\d\s-]*$/.test(normalized)) continue;
+    results.push(normalized);
+  }
+
+  return results;
+}
+
 function splitHandlesByType(list = []) {
   const upiIds = [];
   const emailAddresses = [];
@@ -315,7 +363,15 @@ function splitHandlesByType(list = []) {
 export function updateIntelligence(sessionId, extractionResult) {
   const session = getOrCreateSession(sessionId);
   const intel = extractionResult?.extractedIntelligence || {};
-  const sanitizedBankAccounts = filterBankAccounts(intel.bankAccounts || []);
+  const rawPhoneNumbers = intel.phoneNumbers || [];
+  const seededPhoneNumbers = [
+    ...(session.extractedIntelligence.phoneNumbers || []),
+    ...rawPhoneNumbers,
+  ];
+  const sanitizedBankAccounts = filterBankAccounts(
+    intel.bankAccounts || [],
+    seededPhoneNumbers,
+  );
   const rawPhishingLinks = intel.phishingLinks || [];
   const sanitizedPhishingLinks = sanitizePhishingLinks(rawPhishingLinks);
   const handlesFromPhishingLinks = splitHandlesByType(rawPhishingLinks);
@@ -331,6 +387,10 @@ export function updateIntelligence(sessionId, extractionResult) {
     ...handlesFromUpiIds.emailAddresses,
     ...handlesFromPhishingLinks.emailAddresses,
   ];
+  const sanitizedPhoneNumbers = sanitizePhoneNumbers(
+    rawPhoneNumbers,
+    sanitizedBankAccounts,
+  );
 
   session.extractedIntelligence = {
     bankAccounts: mergeUnique(
@@ -348,7 +408,7 @@ export function updateIntelligence(sessionId, extractionResult) {
     ),
     phoneNumbers: mergeUnique(
       session.extractedIntelligence.phoneNumbers,
-      intel.phoneNumbers,
+      sanitizedPhoneNumbers,
     ),
     suspiciousKeywords: mergeUnique(
       session.extractedIntelligence.suspiciousKeywords,
