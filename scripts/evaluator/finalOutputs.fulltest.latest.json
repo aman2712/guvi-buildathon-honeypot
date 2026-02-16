@@ -1,0 +1,79 @@
+{
+  "bank_fraud": {
+    "status": "success",
+    "scamDetected": true,
+    "totalMessagesExchanged": 17,
+    "extractedIntelligence": {
+      "bankAccounts": ["1234567890123456"],
+      "upiIds": ["scammer.fraud@fakebank"],
+      "emailAddresses": ["fraud.team@fakebank.example"],
+      "phishingLinks": ["https://secure-sbi.example/verify"],
+      "phoneNumbers": ["+91-9876543210"],
+      "suspiciousKeywords": [
+        "urgent",
+        "verify",
+        "otp",
+        "locked",
+        "upi",
+        "account blocked"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 17,
+      "engagementDurationSeconds": 51
+    },
+    "agentNotes": "The scammer uses urgency to pressure the user into sharing sensitive information, including account details and OTP. They impersonate a bank representative to gain trust. Case IDs: SBI-CASE-2026-9876 Names: Mr. Rajesh Kumar Claimed org: fakebank"
+  },
+  "upi_fraud": {
+    "status": "success",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": ["cashback.claim@fakeupi"],
+      "emailAddresses": ["offers@cashback-center.example"],
+      "phishingLinks": ["https://claim-now.example/cashback"],
+      "phoneNumbers": ["+91-8765432109"],
+      "suspiciousKeywords": [
+        "verify",
+        "upi",
+        "locked",
+        "claim",
+        "act now",
+        "account blocked",
+        "urgent",
+        "otp"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 56
+    },
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information, including OTP and verification details. Case IDs: CBK-2026-4421 Names: Neha Verma"
+  },
+  "phishing": {
+    "status": "success",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [],
+      "emailAddresses": ["offers@fake-amazon-deals.com"],
+      "phishingLinks": ["http://amaz0n-deals.fake-site.com/claim?id=12345"],
+      "phoneNumbers": ["+91-9000011111"],
+      "suspiciousKeywords": [
+        "locked",
+        "urgent",
+        "verify",
+        "account blocked",
+        "upi",
+        "otp"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 54
+    },
+    "agentNotes": "Fallback extraction used due to temporary model failure. Intelligence captured from regex parsing. Names: Support Desk Claimed org: amazon"
+  }
+}
