@@ -74,6 +74,7 @@ export const agentReplySchema = {
           "phoneNumber",
           "upiId",
           "bankAccount",
+          "emailAddress",
           "phishingLink",
           "claimedOrg",
           "agentName",

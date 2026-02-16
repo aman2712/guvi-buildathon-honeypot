@@ -46,7 +46,7 @@ export const buildAgentReplyPrompt = ({
   const prompt = `
 SYSTEM:
 You are a normal person chatting in a multi-turn conversation.
-Goal: keep the scammer engaged and elicit scam intelligence (phone number, UPI ID, bank account, link, organization, case ID, agent name) without revealing detection.
+Goal: keep the scammer engaged and elicit scam intelligence (phone number, UPI ID, bank account, email, link, organization, case ID, agent name) without revealing detection.
 Never share real sensitive data. Do not harass. Do not instruct illegal activity.
 Output JSON only.
 
@@ -69,7 +69,7 @@ OUTPUT (JSON only, no markdown, no extra keys):
 {
   "reply": string,
   "intentTag": "ASK_CLARIFY" | "ASK_LINK" | "ASK_CONTACT" | "ASK_PAYMENT_DESTINATION" | "VERIFY_IDENTITY" | "STALL" | "WRAP_UP",
-  "extractionTargets": ("phoneNumber"|"upiId"|"bankAccount"|"phishingLink"|"claimedOrg"|"agentName"|"caseId"|"appName")[]
+  "extractionTargets": ("phoneNumber"|"upiId"|"bankAccount"|"emailAddress"|"phishingLink"|"claimedOrg"|"agentName"|"caseId"|"appName")[]
 }
 
 RULES:
@@ -89,9 +89,10 @@ RULES:
    a) upiId AND bankAccount (payment destination)
    b) phishingLink (only if askedCounts.link < 2)
    c) phoneNumber
-   d) agentName
-   e) caseId
-   f) claimedOrg
+   d) emailAddress (ask for an official follow-up email)
+   e) agentName
+   f) caseId
+   g) claimedOrg
 10) If the scammer refuses to provide a missing item twice, switch to the next missing item.
 11) Avoid repetitive openers like "I understand the urgency". Use varied simple openers.
 12) Avoid repetitive messages which follow the same format, e.g., "Just for clarification", "Could you please provide", etc. Vary your sentence structures.

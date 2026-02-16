@@ -90,6 +90,7 @@ export function getOrCreateSession(sessionId) {
           caseId: 0,
           agentName: 0,
           phoneNumber: 0,
+          emailAddress: 0,
           claimedOrg: 0,
         },
         lastIntentTags: [],
@@ -453,6 +454,9 @@ export function updateDialogState(sessionId, agentReply) {
   }
   if (extractionTargets.includes("phoneNumber")) {
     askedCounts.phoneNumber = (askedCounts.phoneNumber || 0) + 1;
+  }
+  if (extractionTargets.includes("emailAddress")) {
+    askedCounts.emailAddress = (askedCounts.emailAddress || 0) + 1;
   }
   if (extractionTargets.includes("claimedOrg")) {
     askedCounts.claimedOrg = (askedCounts.claimedOrg || 0) + 1;

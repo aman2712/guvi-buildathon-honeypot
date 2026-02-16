@@ -317,6 +317,9 @@ function deriveHaveFromMessages(messages = []) {
   const upiDetected = handleCandidates.some(
     (value) => classifyHandleByContext(value, normalized) === "upi",
   );
+  const emailDetected = handleCandidates.some(
+    (value) => classifyHandleByContext(value, normalized) === "email",
+  );
 
   return {
     phoneNumber: /(?:\+?\d[\d\s-]{8,}\d)/.test(normalized),
@@ -325,6 +328,7 @@ function deriveHaveFromMessages(messages = []) {
       /\b(?:account|acct|a\/c|bank)\b[\s\S]{0,24}\b\d{9,18}\b/i.test(
         normalized,
       ),
+    emailAddress: emailDetected,
     phishingLink: /https?:\/\/\S+/i.test(normalized),
     caseId: extractCaseIdsFromText(normalized).length > 0,
     agentName: /\b(?:i am|my name is|agent|mr\.?|mrs\.?|ms\.?)\b/i.test(
@@ -342,6 +346,8 @@ function buildDialogState(session) {
     phoneNumber: (session.extractedIntelligence.phoneNumbers || []).length > 0,
     upiId: (session.extractedIntelligence.upiIds || []).length > 0,
     bankAccount: (session.extractedIntelligence.bankAccounts || []).length > 0,
+    emailAddress:
+      (session.extractedIntelligence.emailAddresses || []).length > 0,
     phishingLink:
       (session.extractedIntelligence.phishingLinks || []).length > 0,
     caseId: (session.extractedIntelligence.caseIds || []).length > 0,
@@ -353,6 +359,7 @@ function buildDialogState(session) {
     phoneNumber: baseHave.phoneNumber || observedHave.phoneNumber,
     upiId: baseHave.upiId || observedHave.upiId,
     bankAccount: baseHave.bankAccount || observedHave.bankAccount,
+    emailAddress: baseHave.emailAddress || observedHave.emailAddress,
     phishingLink: baseHave.phishingLink || observedHave.phishingLink,
     caseId: baseHave.caseId || observedHave.caseId,
     agentName: baseHave.agentName || observedHave.agentName,
@@ -394,6 +401,7 @@ function chooseForcedTarget(dialogState) {
   if (!have.bankAccount && canAsk("bankAccount")) return "bankAccount";
   if (!have.phishingLink && canAsk("link")) return "phishingLink";
   if (!have.phoneNumber && canAsk("phoneNumber")) return "phoneNumber";
+  if (!have.emailAddress && canAsk("emailAddress")) return "emailAddress";
   if (!have.agentName && canAsk("agentName")) return "agentName";
   if (!have.caseId && canAsk("caseId")) return "caseId";
   if (!have.claimedOrg && canAsk("claimedOrg")) return "claimedOrg";
@@ -424,6 +432,9 @@ function inferExtractionTargetsFromReply(reply = "") {
   ) {
     targets.add("phoneNumber");
   }
+  if (/\bemail\b|\bmail\b/.test(lower)) {
+    targets.add("emailAddress");
+  }
   if (/\bcase\s*id\b|\breference\b/i.test(lower)) targets.add("caseId");
   if (/\bagent\b|\bname\b/i.test(lower)) targets.add("agentName");
   if (/\borganization\b|\bdepartment\b|\bcompany\b|\borg\b/i.test(lower)) {
@@ -438,6 +449,7 @@ function getAskedCountKey(target = "") {
   if (target === "bankAccount") return "bankAccount";
   if (target === "upiId") return "upiId";
   if (target === "phoneNumber") return "phoneNumber";
+  if (target === "emailAddress") return "emailAddress";
   if (target === "caseId") return "caseId";
   if (target === "agentName") return "agentName";
   if (target === "claimedOrg") return "claimedOrg";
@@ -460,6 +472,7 @@ function replyMentionsTarget(reply = "", target = "NONE") {
   if (target === "bankAccount") return /\baccount\b|\bbank\b/.test(text);
   if (target === "phishingLink") return /\blink\b|\bwebsite\b|\burl\b|\bportal\b/.test(text);
   if (target === "phoneNumber") return /\bcall\b|\bcontact\b|\bnumber\b|\bhelpline\b/.test(text);
+  if (target === "emailAddress") return /\bemail\b|\bmail\b/.test(text);
   if (target === "agentName") return /\bname\b/.test(text);
   if (target === "caseId") return /\bcase\b|\breference\b/.test(text);
   if (target === "claimedOrg") return /\borganization\b|\borg\b|\bdepartment\b|\bcompany\b/.test(text);
@@ -478,6 +491,9 @@ function forcedTargetFallbackReply(target = "NONE") {
   }
   if (target === "phoneNumber") {
     return "If this fails, which official number should I call for support?";
+  }
+  if (target === "emailAddress") {
+    return "If I need to follow up, which official email should I use?";
   }
   if (target === "agentName") {
     return "Who should I ask for when I follow up on this?";
