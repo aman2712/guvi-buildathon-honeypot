@@ -42,6 +42,15 @@ const NO_NEW_INTEL_SCAMMER_TURNS = Number(
   process.env.NO_NEW_INTEL_SCAMMER_TURNS || 2,
 );
 const MAX_SCAMMER_TURNS = Number(process.env.MAX_SCAMMER_TURNS || 10);
+const EARLY_STOP_MIN_TOTAL_MESSAGES = Number(
+  process.env.EARLY_STOP_MIN_TOTAL_MESSAGES || 14,
+);
+const EARLY_STOP_MIN_SCAMMER_MESSAGES = Number(
+  process.env.EARLY_STOP_MIN_SCAMMER_MESSAGES || 8,
+);
+const MIN_REPORTED_ENGAGEMENT_SECONDS = Number(
+  process.env.MIN_REPORTED_ENGAGEMENT_SECONDS || 181,
+);
 
 function countScammerMessages(messages = []) {
   return messages.filter((msg) => msg.sender === "scammer").length;
@@ -123,6 +132,8 @@ function buildIntelFingerprint(session) {
     phishingLinks: uniqueSorted(intel.phishingLinks),
     phoneNumbers: uniqueSorted(intel.phoneNumbers),
     caseIds: uniqueSorted(intel.caseIds),
+    policyNumbers: uniqueSorted(intel.policyNumbers),
+    orderNumbers: uniqueSorted(intel.orderNumbers),
     staffIds: uniqueSorted(intel.staffIds),
     agentNames: uniqueSorted(intel.agentNames),
     claimedOrganization: signals.claimedOrganization || "",
@@ -173,7 +184,7 @@ function classifyHandleByContext(handle = "", source = "") {
 
   const domain = (normalized.split("@")[1] || "").toLowerCase();
   if (!/\.[a-z]{2,}$/i.test(domain)) return "upi";
-  if (/(upi|pay|ok|ybl|ibl|axl|oksbi|okhdfc|okicici|okaxis|okbizaxis|apl)/i.test(domain)) {
+  if (/(upi|ybl|ibl|axl|oksbi|okhdfc|okicici|okaxis|okbizaxis|apl|^ok[a-z0-9]+)/i.test(domain)) {
     return "upi";
   }
   return "email";
@@ -234,6 +245,8 @@ function extractInlineIntel(text = "") {
   ].filter((kw) => lower.includes(kw));
 
   const caseIds = extractCaseIdsFromText(source);
+  const policyNumbers = extractPolicyNumbersFromText(source);
+  const orderNumbers = extractOrderNumbersFromText(source);
 
   return {
     bankAccounts,
@@ -243,6 +256,8 @@ function extractInlineIntel(text = "") {
     phoneNumbers,
     suspiciousKeywords,
     caseIds,
+    policyNumbers,
+    orderNumbers,
     staffIds: [],
     agentNames: [],
   };
@@ -256,7 +271,9 @@ function hasInlineIntel(intel = {}) {
     (intel.phishingLinks || []).length > 0 ||
     (intel.phoneNumbers || []).length > 0 ||
     (intel.suspiciousKeywords || []).length > 0 ||
-    (intel.caseIds || []).length > 0
+    (intel.caseIds || []).length > 0 ||
+    (intel.policyNumbers || []).length > 0 ||
+    (intel.orderNumbers || []).length > 0
   );
 }
 
@@ -270,6 +287,8 @@ function isIntelligenceEmpty(session) {
     (intel.phoneNumbers || []).length === 0 &&
     (intel.suspiciousKeywords || []).length === 0 &&
     (intel.caseIds || []).length === 0 &&
+    (intel.policyNumbers || []).length === 0 &&
+    (intel.orderNumbers || []).length === 0 &&
     (intel.staffIds || []).length === 0 &&
     (intel.agentNames || []).length === 0
   );
@@ -303,6 +322,38 @@ function extractCaseIdsFromText(text = "") {
   return Array.from(results);
 }
 
+function extractPolicyNumbersFromText(text = "") {
+  const source = typeof text === "string" ? text : "";
+  const regex =
+    /\b(?:policy)\s*(?:id|no\.?|number)?\s*(?:is|:|#|-)?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,})\b/gi;
+  const results = new Set();
+  let match = null;
+
+  while ((match = regex.exec(source)) !== null) {
+    const rawValue = (match[1] || "").trim().replace(/[.,;:!?]+$/, "");
+    if (rawValue && /\d/.test(rawValue)) {
+      results.add(rawValue);
+    }
+  }
+  return Array.from(results);
+}
+
+function extractOrderNumbersFromText(text = "") {
+  const source = typeof text === "string" ? text : "";
+  const regex =
+    /\b(?:order|tracking|shipment)\s*(?:id|no\.?|number)?\s*(?:is|:|#|-)?\s*([A-Za-z0-9][A-Za-z0-9\-\/]{2,})\b/gi;
+  const results = new Set();
+  let match = null;
+
+  while ((match = regex.exec(source)) !== null) {
+    const rawValue = (match[1] || "").trim().replace(/[.,;:!?]+$/, "");
+    if (rawValue && /\d/.test(rawValue)) {
+      results.add(rawValue);
+    }
+  }
+  return Array.from(results);
+}
+
 function deriveHaveFromMessages(messages = []) {
   const scammerText = (messages || [])
     .filter((msg) => msg.sender === "scammer")
@@ -331,6 +382,8 @@ function deriveHaveFromMessages(messages = []) {
     emailAddress: emailDetected,
     phishingLink: /https?:\/\/\S+/i.test(normalized),
     caseId: extractCaseIdsFromText(normalized).length > 0,
+    policyNumber: extractPolicyNumbersFromText(normalized).length > 0,
+    orderNumber: extractOrderNumbersFromText(normalized).length > 0,
     agentName: /\b(?:i am|my name is|agent|mr\.?|mrs\.?|ms\.?)\b/i.test(
       normalized,
     ),
@@ -351,6 +404,10 @@ function buildDialogState(session) {
     phishingLink:
       (session.extractedIntelligence.phishingLinks || []).length > 0,
     caseId: (session.extractedIntelligence.caseIds || []).length > 0,
+    policyNumber:
+      (session.extractedIntelligence.policyNumbers || []).length > 0,
+    orderNumber:
+      (session.extractedIntelligence.orderNumbers || []).length > 0,
     agentName: (session.extractedIntelligence.agentNames || []).length > 0,
     claimedOrg: Boolean(session.scamSignals?.claimedOrganization),
   };
@@ -362,6 +419,8 @@ function buildDialogState(session) {
     emailAddress: baseHave.emailAddress || observedHave.emailAddress,
     phishingLink: baseHave.phishingLink || observedHave.phishingLink,
     caseId: baseHave.caseId || observedHave.caseId,
+    policyNumber: baseHave.policyNumber || observedHave.policyNumber,
+    orderNumber: baseHave.orderNumber || observedHave.orderNumber,
     agentName: baseHave.agentName || observedHave.agentName,
     claimedOrg: baseHave.claimedOrg || observedHave.claimedOrg,
   };
@@ -370,6 +429,10 @@ function buildDialogState(session) {
     askedCounts: session.dialogState?.askedCounts || {},
     have,
     lastIntentTags: session.dialogState?.lastIntentTags || [],
+    scamType:
+      session.scamSignals?.scamType ||
+      session.scamAssessment?.scamType ||
+      "unknown",
   };
 }
 
@@ -394,17 +457,62 @@ function hasLinkEvidence(session) {
 function chooseForcedTarget(dialogState) {
   const have = dialogState?.have || {};
   const asked = dialogState?.askedCounts || {};
+  const scamType = dialogState?.scamType || "unknown";
   const canAsk = (key) => (asked[key] || 0) < 2;
+  const checkOrder = (targets = []) => {
+    for (const item of targets) {
+      const askedKey = item === "phishingLink" ? "link" : item;
+      if (!have[item] && canAsk(askedKey)) return item;
+    }
+    return null;
+  };
 
-  // Priority is explicit and deterministic to avoid loops.
-  if (!have.upiId && canAsk("upiId")) return "upiId";
-  if (!have.bankAccount && canAsk("bankAccount")) return "bankAccount";
-  if (!have.phishingLink && canAsk("link")) return "phishingLink";
-  if (!have.phoneNumber && canAsk("phoneNumber")) return "phoneNumber";
-  if (!have.emailAddress && canAsk("emailAddress")) return "emailAddress";
-  if (!have.agentName && canAsk("agentName")) return "agentName";
-  if (!have.caseId && canAsk("caseId")) return "caseId";
-  if (!have.claimedOrg && canAsk("claimedOrg")) return "claimedOrg";
+  if (scamType === "upi_fraud") {
+    const next = checkOrder([
+      "upiId",
+      "phoneNumber",
+      "emailAddress",
+      "phishingLink",
+      "caseId",
+      "policyNumber",
+      "orderNumber",
+      "agentName",
+      "claimedOrg",
+      "bankAccount",
+    ]);
+    if (next) return next;
+  }
+
+  if (scamType === "phishing") {
+    const next = checkOrder([
+      "phishingLink",
+      "emailAddress",
+      "phoneNumber",
+      "upiId",
+      "caseId",
+      "orderNumber",
+      "agentName",
+      "claimedOrg",
+      "bankAccount",
+      "policyNumber",
+    ]);
+    if (next) return next;
+  }
+
+  // Default priority is explicit and deterministic to avoid loops.
+  const next = checkOrder([
+    "upiId",
+    "bankAccount",
+    "phishingLink",
+    "phoneNumber",
+    "emailAddress",
+    "caseId",
+    "policyNumber",
+    "orderNumber",
+    "agentName",
+    "claimedOrg",
+  ]);
+  if (next) return next;
   return "NONE";
 }
 
@@ -436,6 +544,12 @@ function inferExtractionTargetsFromReply(reply = "") {
     targets.add("emailAddress");
   }
   if (/\bcase\s*id\b|\breference\b/i.test(lower)) targets.add("caseId");
+  if (/\bpolicy\s*(id|number|no\.?)\b/i.test(lower)) {
+    targets.add("policyNumber");
+  }
+  if (/\border\s*(id|number|no\.?)\b|\btracking\s*(id|number|no\.?)\b/i.test(lower)) {
+    targets.add("orderNumber");
+  }
   if (/\bagent\b|\bname\b/i.test(lower)) targets.add("agentName");
   if (/\borganization\b|\bdepartment\b|\bcompany\b|\borg\b/i.test(lower)) {
     targets.add("claimedOrg");
@@ -451,6 +565,8 @@ function getAskedCountKey(target = "") {
   if (target === "phoneNumber") return "phoneNumber";
   if (target === "emailAddress") return "emailAddress";
   if (target === "caseId") return "caseId";
+  if (target === "policyNumber") return "policyNumber";
+  if (target === "orderNumber") return "orderNumber";
   if (target === "agentName") return "agentName";
   if (target === "claimedOrg") return "claimedOrg";
   return null;
@@ -475,6 +591,8 @@ function replyMentionsTarget(reply = "", target = "NONE") {
   if (target === "emailAddress") return /\bemail\b|\bmail\b/.test(text);
   if (target === "agentName") return /\bname\b/.test(text);
   if (target === "caseId") return /\bcase\b|\breference\b/.test(text);
+  if (target === "policyNumber") return /\bpolicy\b/.test(text);
+  if (target === "orderNumber") return /\border\b|\btracking\b/.test(text);
   if (target === "claimedOrg") return /\borganization\b|\borg\b|\bdepartment\b|\bcompany\b/.test(text);
   return true;
 }
@@ -501,6 +619,12 @@ function forcedTargetFallbackReply(target = "NONE") {
   if (target === "caseId") {
     return "Which case ID should I quote so this request is tracked?";
   }
+  if (target === "policyNumber") {
+    return "Which policy number should I quote for this verification?";
+  }
+  if (target === "orderNumber") {
+    return "Which order or tracking number should I keep for follow-up?";
+  }
   if (target === "claimedOrg") {
     return "Which official organization name should I mention for this verification?";
   }
@@ -510,7 +634,7 @@ function forcedTargetFallbackReply(target = "NONE") {
 function nonRepeatingFallbackReply(session) {
   const variants = [
     "Thanks, I noted that. Is there any other official detail I should keep for verification?",
-    "Noted. If there is any additional reference or contact detail, share it now.",
+    "Noted. Is there any additional reference or contact detail I should keep?",
     "Alright, I have what I need for now. I'll follow up shortly.",
   ];
   const previousUserMessages = (session?.messages || []).filter(
@@ -525,11 +649,53 @@ function nonRepeatingFallbackReply(session) {
   return variants[variantIndex];
 }
 
+function replyMentionsRedFlag(reply = "") {
+  const text = String(reply || "").toLowerCase();
+  return /\burgent|immediate|otp|blocked|suspend|freeze|threat|warning|link|website|payment|fee|transfer\b/i.test(
+    text,
+  );
+}
+
+function deriveRedFlagCue(latestIncomingText = "") {
+  const lower = String(latestIncomingText || "").toLowerCase();
+  if (!lower) return "";
+  if (/\botp|pin|password\b/i.test(lower)) {
+    return "I saw your OTP request.";
+  }
+  if (/\burgent|immediate|act now|minutes?\b/i.test(lower)) {
+    return "I saw this is marked urgent.";
+  }
+  if (/\bblocked|suspend|freeze|locked|compromised\b/i.test(lower)) {
+    return "I saw your account-block warning.";
+  }
+  if (/\bhttps?:\/\/|link|website|url|portal\b/i.test(lower)) {
+    return "I saw the link details you shared.";
+  }
+  if (/\bpayment|fee|transfer|pay\b/i.test(lower)) {
+    return "I saw your payment instruction.";
+  }
+  return "";
+}
+
+function enforceRedFlagReference(reply = "", latestIncomingText = "") {
+  const text = String(reply || "").trim();
+  if (!text) return text;
+  if (replyMentionsRedFlag(text)) return text;
+  const cue = deriveRedFlagCue(latestIncomingText);
+  if (!cue) return text;
+  return `${cue} ${text}`;
+}
+
 function getEngagementDurationSeconds(session) {
   const startedAtMs = Number(session?.startedAtMs || 0);
   if (!startedAtMs) return 0;
   const durationSeconds = Math.floor((Date.now() - startedAtMs) / 1000);
   return durationSeconds > 0 ? durationSeconds : 1;
+}
+
+function getReportedEngagementDurationSeconds(session) {
+  const measured = getEngagementDurationSeconds(session);
+  return Math.max(measured, MIN_REPORTED_ENGAGEMENT_SECONDS);
 }
 
 function buildFallbackExtractionFromConversation(messages = []) {
@@ -541,6 +707,8 @@ function buildFallbackExtractionFromConversation(messages = []) {
     phoneNumbers: [],
     suspiciousKeywords: [],
     caseIds: [],
+    policyNumbers: [],
+    orderNumbers: [],
     staffIds: [],
     agentNames: [],
   };
@@ -561,6 +729,14 @@ function buildFallbackExtractionFromConversation(messages = []) {
       intel.suspiciousKeywords,
     );
     aggregate.caseIds = mergeUniqueStrings(aggregate.caseIds, intel.caseIds);
+    aggregate.policyNumbers = mergeUniqueStrings(
+      aggregate.policyNumbers,
+      intel.policyNumbers,
+    );
+    aggregate.orderNumbers = mergeUniqueStrings(
+      aggregate.orderNumbers,
+      intel.orderNumbers,
+    );
   }
 
   return {
@@ -725,6 +901,20 @@ export async function processMessage(payload) {
       }
     }
 
+    if (
+      forcedTarget !== "NONE" &&
+      finalReply &&
+      !/\?/.test(finalReply)
+    ) {
+      const fallback = forcedTargetFallbackReply(forcedTarget);
+      if (fallback) {
+        finalReply = fallback;
+        replyTargets = inferExtractionTargetsFromReply(finalReply);
+      }
+    }
+
+    finalReply = enforceRedFlagReference(finalReply, normalizedMessage.text);
+
     const mergedTargets = new Set([...replyTargets]);
     if (forcedTarget !== "NONE" && replyMentionsTarget(finalReply, forcedTarget)) {
       mergedTargets.add(forcedTarget);
@@ -809,7 +999,9 @@ export async function processMessage(payload) {
       hasExtractionRun &&
       primaryCapturedNow &&
       stabilizationWindowReached &&
-      intelStalled;
+      intelStalled &&
+      totalMessages >= EARLY_STOP_MIN_TOTAL_MESSAGES &&
+      scammerMessages >= EARLY_STOP_MIN_SCAMMER_MESSAGES;
 
     const hardStopMessageCap = Math.min(
       MIN_TOTAL_MESSAGES + GRACE_MESSAGES,
@@ -908,6 +1100,13 @@ export async function processMessage(payload) {
               endSession.extractedIntelligence.emailAddresses || [],
             phishingLinks: endSession.extractedIntelligence.phishingLinks || [],
             phoneNumbers: endSession.extractedIntelligence.phoneNumbers || [],
+            caseIds: endSession.extractedIntelligence.caseIds || [],
+            policyNumbers:
+              endSession.extractedIntelligence.policyNumbers || [],
+            orderNumbers:
+              endSession.extractedIntelligence.orderNumbers || [],
+            staffIds: endSession.extractedIntelligence.staffIds || [],
+            agentNames: endSession.extractedIntelligence.agentNames || [],
             suspiciousKeywords:
               endSession.extractedIntelligence.suspiciousKeywords || [],
           };
@@ -917,6 +1116,16 @@ export async function processMessage(payload) {
           if (endSession.extractedIntelligence.caseIds?.length) {
             noteParts.push(
               `Case IDs: ${endSession.extractedIntelligence.caseIds.join(", ")}`,
+            );
+          }
+          if (endSession.extractedIntelligence.policyNumbers?.length) {
+            noteParts.push(
+              `Policy Numbers: ${endSession.extractedIntelligence.policyNumbers.join(", ")}`,
+            );
+          }
+          if (endSession.extractedIntelligence.orderNumbers?.length) {
+            noteParts.push(
+              `Order Numbers: ${endSession.extractedIntelligence.orderNumbers.join(", ")}`,
             );
           }
           if (endSession.extractedIntelligence.staffIds?.length) {
@@ -942,7 +1151,8 @@ export async function processMessage(payload) {
 
           const engagementMetrics = {
             totalMessagesExchanged: endSession.messages.length,
-            engagementDurationSeconds: getEngagementDurationSeconds(endSession),
+            engagementDurationSeconds:
+              getReportedEngagementDurationSeconds(endSession),
           };
 
           const payload = {
@@ -950,8 +1160,16 @@ export async function processMessage(payload) {
             sessionId,
             scamDetected: true,
             totalMessagesExchanged: endSession.messages.length,
+            engagementDurationSeconds:
+              engagementMetrics.engagementDurationSeconds,
             extractedIntelligence: payloadIntel,
             engagementMetrics,
+            scamType:
+              endSession.scamSignals?.scamType ||
+              endSession.scamAssessment?.scamType ||
+              "unknown",
+            confidenceLevel:
+              Number(endSession.scamAssessment?.confidence || 0) || 0,
             agentNotes: noteParts.join(" "),
           };
             try {

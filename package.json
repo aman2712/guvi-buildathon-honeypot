@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node src/main.js",
     "eval:run": "node scripts/evaluator/runEvaluation.js",
-    "eval:score": "node scripts/evaluator/scoreFinalOutputs.js"
+    "eval:score": "node scripts/evaluator/scoreFinalOutputs.js",
+    "eval:build-finals": "node scripts/evaluator/buildFinalOutputsFromCallbacks.js"
   },
   "author": "Md Aman Khan",
   "license": "ISC",

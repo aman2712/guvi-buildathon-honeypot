@@ -1,14 +1,22 @@
 {
   "bank_fraud": {
     "status": "success",
+    "sessionId": "demo-bank-1",
     "scamDetected": true,
+    "scamType": "bank_fraud",
+    "confidenceLevel": 0.93,
     "totalMessagesExchanged": 18,
+    "engagementDurationSeconds": 125,
     "extractedIntelligence": {
       "phoneNumbers": ["+91-9876543210"],
       "bankAccounts": ["1234567890123456"],
       "upiIds": ["scammer.fraud@fakebank"],
       "phishingLinks": ["https://secure-sbi.example/verify"],
-      "emailAddresses": ["fraud.team@fakebank.example"]
+      "emailAddresses": ["fraud.team@fakebank.example"],
+      "caseIds": ["SBI-CASE-2026-9876"],
+      "policyNumbers": ["SBI-POL-7781"],
+      "orderNumbers": [],
+      "agentNames": ["Mr. Rajesh Kumar"]
     },
     "engagementMetrics": {
       "totalMessagesExchanged": 18,
@@ -18,14 +26,22 @@
   },
   "upi_fraud": {
     "status": "success",
+    "sessionId": "demo-upi-1",
     "scamDetected": true,
+    "scamType": "upi_fraud",
+    "confidenceLevel": 0.9,
     "totalMessagesExchanged": 16,
+    "engagementDurationSeconds": 97,
     "extractedIntelligence": {
       "phoneNumbers": ["+91-8765432109"],
       "bankAccounts": [],
       "upiIds": ["cashback.claim@fakeupi"],
       "phishingLinks": ["https://claim-now.example/cashback"],
-      "emailAddresses": ["offers@cashback-center.example"]
+      "emailAddresses": ["offers@cashback-center.example"],
+      "caseIds": ["CBK-2026-4421"],
+      "policyNumbers": [],
+      "orderNumbers": ["CBK-ORD-4421"],
+      "agentNames": ["Neha Verma"]
     },
     "engagementMetrics": {
       "totalMessagesExchanged": 16,
@@ -35,14 +51,22 @@
   },
   "phishing": {
     "status": "success",
+    "sessionId": "demo-phish-1",
     "scamDetected": true,
+    "scamType": "phishing",
+    "confidenceLevel": 0.88,
     "totalMessagesExchanged": 14,
+    "engagementDurationSeconds": 88,
     "extractedIntelligence": {
       "phoneNumbers": ["+91-9000011111"],
       "bankAccounts": [],
       "upiIds": [],
       "phishingLinks": ["http://amaz0n-deals.fake-site.com/claim?id=12345"],
-      "emailAddresses": ["offers@fake-amazon-deals.com"]
+      "emailAddresses": ["offers@fake-amazon-deals.com"],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": ["AMZ-TRACK-7788"],
+      "agentNames": ["Support Desk"]
     },
     "engagementMetrics": {
       "totalMessagesExchanged": 14,

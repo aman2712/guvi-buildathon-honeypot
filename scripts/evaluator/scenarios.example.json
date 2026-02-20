@@ -18,6 +18,7 @@
       "phishingLink": "https://secure-sbi.example/verify",
       "emailAddress": "fraud.team@fakebank.example",
       "caseId": "SBI-CASE-2026-9876",
+      "policyNumber": "SBI-POL-7781",
       "agentName": "Mr. Rajesh Kumar"
     }
   },
@@ -39,6 +40,7 @@
       "phishingLink": "https://claim-now.example/cashback",
       "emailAddress": "offers@cashback-center.example",
       "caseId": "CBK-2026-4421",
+      "orderNumber": "CBK-ORD-4421",
       "agentName": "Neha Verma"
     }
   },
@@ -58,6 +60,7 @@
       "phishingLink": "http://amaz0n-deals.fake-site.com/claim?id=12345",
       "phoneNumber": "+91-9000011111",
       "emailAddress": "offers@fake-amazon-deals.com",
+      "orderNumber": "AMZ-TRACK-7788",
       "agentName": "Support Desk"
     }
   }

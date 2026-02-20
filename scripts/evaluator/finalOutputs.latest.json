@@ -1,0 +1,674 @@
+{
+  "bank_fraud": {
+    "status": "success",
+    "sessionId": "1ae7e1e2-7405-46f6-bd06-f845bad9b612",
+    "scamDetected": true,
+    "totalMessagesExchanged": 19,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [
+        "1234567890123456"
+      ],
+      "upiIds": [
+        "scammer.fraud@fakebank"
+      ],
+      "emailAddresses": [
+        "fraud.team@fakebank.example"
+      ],
+      "phishingLinks": [],
+      "phoneNumbers": [
+        "+91-9876543210"
+      ],
+      "caseIds": [
+        "SBI-CASE-2026-9876"
+      ],
+      "policyNumbers": [],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "urgent",
+        "otp",
+        "upi",
+        "locked",
+        "verification",
+        "account block",
+        "account suspension",
+        "suspension"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 19,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "bank_fraud",
+    "confidenceLevel": 0.95,
+    "agentNotes": "The scammer uses urgency to pressure the user into sharing sensitive information like OTP and account details. They impersonate a bank to create a sense of legitimacy. Case IDs: SBI-CASE-2026-9876 Claimed org: fakebank"
+  },
+  "upi_fraud": {
+    "status": "success",
+    "sessionId": "901990e5-49ff-43ae-87be-8c9a2165c99d",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [
+        "cashback.claim@fakeupi"
+      ],
+      "emailAddresses": [
+        "offers@cashback-center.example"
+      ],
+      "phishingLinks": [
+        "https://claim-now.example/cashback"
+      ],
+      "phoneNumbers": [
+        "+91-8765432109"
+      ],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": [
+        "CBK-ORD-4421"
+      ],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "verify",
+        "upi",
+        "locked",
+        "urgent",
+        "account blocked",
+        "otp",
+        "account may be blocked",
+        "OTP",
+        "suspension"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information like OTP and verification details. They provide fake UPI IDs and email addresses to facilitate the scam. Order Numbers: CBK-ORD-4421"
+  },
+  "phishing_link": {
+    "status": "success",
+    "sessionId": "94a91b3c-0a4d-48f9-b56f-72dbe1e4ee41",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [],
+      "emailAddresses": [
+        "offers@fake-amazon-deals.com"
+      ],
+      "phishingLinks": [
+        "http://amaz0n-deals.fake-site.com/claim?id=12345"
+      ],
+      "phoneNumbers": [
+        "+91-9000011111"
+      ],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": [
+        "AMZ-TRACK-7788"
+      ],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "locked",
+        "exclusive offer",
+        "urgency",
+        "verify",
+        "account blocked",
+        "urgent",
+        "otp",
+        "verification"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.95,
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information, including OTPs and verification details. They impersonate a legitimate organization to gain trust. Order Numbers: AMZ-TRACK-7788 Claimed org: Amazon"
+  },
+  "kyc_fraud": {
+    "status": "success",
+    "sessionId": "a58a116e-b3ad-4025-bea8-d58091167c43",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [],
+      "emailAddresses": [],
+      "phishingLinks": [
+        "https://kyc-refresh.example/verify"
+      ],
+      "phoneNumbers": [
+        "+91-9111111111"
+      ],
+      "caseIds": [
+        "KYC-2026-5512"
+      ],
+      "policyNumbers": [
+        "KYC-POL-9087"
+      ],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "kyc",
+        "locked",
+        "urgent",
+        "verify",
+        "account access",
+        "blocked",
+        "otp",
+        "account access will be suspended",
+        "account access suspended",
+        "account blocked",
+        "case id",
+        "policy number",
+        "account may be blocked"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer employs urgency tactics to pressure the user into providing sensitive information, including OTPs and personal details, under the guise of KYC verification. Case IDs: KYC-2026-5512 Policy Numbers: KYC-POL-9087"
+  },
+  "job_scam": {
+    "status": "success",
+    "sessionId": "2786c110-f03d-4e1f-a337-d6e97ac47cfe",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [
+        "6677889900112233"
+      ],
+      "upiIds": [
+        "hr.onboarding@oksbi"
+      ],
+      "emailAddresses": [
+        "hr@instant-hiring.example"
+      ],
+      "phishingLinks": [],
+      "phoneNumbers": [],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": [
+        "JOB-ORD-2104"
+      ],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "upi",
+        "locked",
+        "urgent",
+        "verify",
+        "account blocked",
+        "onboarding fee",
+        "otp",
+        "verification",
+        "account suspension",
+        "act now",
+        "suspension"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "job_scam",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer is using urgency to pressure the user into sending an OTP and payment for a supposed job opportunity. They provide fake account details and an email for confirmation. Order Numbers: JOB-ORD-2104"
+  },
+  "lottery_scam": {
+    "status": "success",
+    "sessionId": "6f6a01f2-30ed-45e1-b0e9-8855fed35f19",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [
+        "lottery.claim@okaxis"
+      ],
+      "emailAddresses": [],
+      "phishingLinks": [],
+      "phoneNumbers": [
+        "+91-9222222222"
+      ],
+      "caseIds": [
+        "LOT-2026-113"
+      ],
+      "policyNumbers": [
+        "LOT-PAYOUT-551"
+      ],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "upi",
+        "locked",
+        "urgent",
+        "verify",
+        "account blocked",
+        "otp",
+        "verification",
+        "processing fee",
+        "OTP",
+        "case ID",
+        "policy number"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.95,
+    "agentNotes": "The scammer uses urgency to pressure the user into sending an OTP and processing fee for a fake lottery win. They provide a UPI ID and a phone number for further contact. Case IDs: LOT-2026-113 Policy Numbers: LOT-PAYOUT-551"
+  },
+  "electricity_bill": {
+    "status": "success",
+    "sessionId": "0f7c2bff-6568-450a-a476-27f4e5152e3d",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [
+        "billdesk.pay@ybl"
+      ],
+      "emailAddresses": [],
+      "phishingLinks": [
+        "https://power-pay.example/bill"
+      ],
+      "phoneNumbers": [
+        "+91-9333333333"
+      ],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": [
+        "EB-ORDER-661"
+      ],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "upi",
+        "locked",
+        "urgent",
+        "verify",
+        "account blocked",
+        "otp",
+        "verification"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information like OTPs. They claim to be from the electricity board and provide a UPI ID for payment. Order Numbers: EB-ORDER-661 Claimed org: Electricity board"
+  },
+  "govt_scheme": {
+    "status": "success",
+    "sessionId": "d38e6507-9e92-43d3-a06c-8cbe3b529a68",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [
+        "5566778899001122"
+      ],
+      "upiIds": [],
+      "emailAddresses": [
+        "scheme.desk@gov-benefit.example"
+      ],
+      "phishingLinks": [],
+      "phoneNumbers": [
+        "+91-9444444444"
+      ],
+      "caseIds": [
+        "GOV-REF-770"
+      ],
+      "policyNumbers": [],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "verify",
+        "locked",
+        "urgent",
+        "account blocked",
+        "subsidy",
+        "otp"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information, including OTPs and account details. They claim to be from a government organization offering a subsidy. Case IDs: GOV-REF-770 Claimed org: government"
+  },
+  "crypto_investment": {
+    "status": "success",
+    "sessionId": "019699d2-50cc-4f4b-8469-1965762605fe",
+    "scamDetected": true,
+    "totalMessagesExchanged": 17,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [
+        "2233445566778899"
+      ],
+      "upiIds": [
+        "wealth.lock@okhdfcbank"
+      ],
+      "emailAddresses": [],
+      "phishingLinks": [
+        "https://prime-invest-now.example/open"
+      ],
+      "phoneNumbers": [
+        "+91-9555555555"
+      ],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "upi",
+        "locked",
+        "urgent",
+        "verify",
+        "account blocked",
+        "otp"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 17,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "investment_scam",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer emphasizes urgency and requests sensitive information like OTPs to facilitate the scam. They provide a UPI ID and a phishing link for verification."
+  },
+  "customs_parcel": {
+    "status": "success",
+    "sessionId": "52964e69-e947-4ddb-8115-bbff1fca2023",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [],
+      "emailAddresses": [
+        "customs.help@parceldesk.example"
+      ],
+      "phishingLinks": [
+        "https://parcel-clearance.example/pay"
+      ],
+      "phoneNumbers": [
+        "+91-9666666666"
+      ],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": [
+        "CST-TRACK-9981"
+      ],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "locked",
+        "urgent",
+        "clearance charge",
+        "act now",
+        "account may be blocked",
+        "otp",
+        "verification",
+        "account",
+        "suspension",
+        "account blocked",
+        "OTP"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer uses urgency and requests sensitive information like OTPs to manipulate the user into compliance. Order Numbers: CST-TRACK-9981"
+  },
+  "tech_support": {
+    "status": "success",
+    "sessionId": "a343f8dd-b3a0-48bb-bb84-541cae40084a",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [],
+      "emailAddresses": [
+        "helpdesk@security-alert.example"
+      ],
+      "phishingLinks": [
+        "https://device-cleanup.example/remote"
+      ],
+      "phoneNumbers": [
+        "+91-9777777777"
+      ],
+      "caseIds": [
+        "SUP-5566"
+      ],
+      "policyNumbers": [],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "verify",
+        "locked",
+        "urgent",
+        "account",
+        "blocked",
+        "otp",
+        "suspension",
+        "account blocked"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "tech_support",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer impersonates Microsoft support, creating a sense of urgency to extract sensitive information like OTPs and verification details. Case IDs: SUP-5566 Claimed org: Microsoft"
+  },
+  "loan_approval": {
+    "status": "success",
+    "sessionId": "490ef6e1-9964-45d7-81f0-9e834cd4d6b0",
+    "scamDetected": true,
+    "totalMessagesExchanged": 17,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [
+        "8899001122334455"
+      ],
+      "upiIds": [
+        "loan.process@okicici"
+      ],
+      "emailAddresses": [],
+      "phishingLinks": [],
+      "phoneNumbers": [
+        "+91-9888888888"
+      ],
+      "caseIds": [],
+      "policyNumbers": [
+        "LN-PROC-2201"
+      ],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "upi",
+        "locked",
+        "urgent",
+        "verify",
+        "account blocked",
+        "otp"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 17,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "upi_fraud",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information like OTP and UPI details. They claim immediate action is necessary to avoid account issues. Policy Numbers: LN-PROC-2201"
+  },
+  "income_tax": {
+    "status": "success",
+    "sessionId": "7294a1c1-1b55-4e71-879b-6ed8cede0146",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [],
+      "emailAddresses": [
+        "refund@it-dept-alert.example"
+      ],
+      "phishingLinks": [
+        "https://refund-tax.example/claim"
+      ],
+      "phoneNumbers": [
+        "+91-9999999990"
+      ],
+      "caseIds": [
+        "ITR-2026-454"
+      ],
+      "policyNumbers": [],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "verify",
+        "locked",
+        "urgent",
+        "account blocked",
+        "otp"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer uses urgency to pressure the user into providing sensitive information, including OTPs and personal details, through a phishing link. Case IDs: ITR-2026-454"
+  },
+  "refund_scam": {
+    "status": "success",
+    "sessionId": "c3b0ee62-001e-4ee5-8e6d-ac69fb6b9313",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [
+        "refund.verify@ibl"
+      ],
+      "emailAddresses": [
+        "refund.ops@payments.example"
+      ],
+      "phishingLinks": [],
+      "phoneNumbers": [
+        "+91-9999999991"
+      ],
+      "caseIds": [],
+      "policyNumbers": [],
+      "orderNumbers": [
+        "RFND-9912"
+      ],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "otp",
+        "upi",
+        "verify",
+        "locked",
+        "urgent",
+        "account blocked",
+        "suspension",
+        "verification",
+        "refund"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "upi_fraud",
+    "confidenceLevel": 0.95,
+    "agentNotes": "The scammer uses urgency to pressure the user into sharing sensitive information like OTP and UPI details. They repeatedly emphasize the risk of account suspension. Order Numbers: RFND-9912"
+  },
+  "insurance": {
+    "status": "success",
+    "sessionId": "f1c09691-f617-42ee-828e-48024e673dcb",
+    "scamDetected": true,
+    "totalMessagesExchanged": 21,
+    "engagementDurationSeconds": 181,
+    "extractedIntelligence": {
+      "bankAccounts": [],
+      "upiIds": [
+        "policy.renew@okaxis"
+      ],
+      "emailAddresses": [
+        "renewal@insurance-help.example"
+      ],
+      "phishingLinks": [],
+      "phoneNumbers": [
+        "+91-9999999992"
+      ],
+      "caseIds": [
+        "INS-CASE-311"
+      ],
+      "policyNumbers": [
+        "INS-POL-8871"
+      ],
+      "orderNumbers": [],
+      "staffIds": [],
+      "agentNames": [],
+      "suspiciousKeywords": [
+        "upi",
+        "locked",
+        "urgent",
+        "policy lapsed",
+        "renewal charges",
+        "account blocked",
+        "verify",
+        "otp"
+      ]
+    },
+    "engagementMetrics": {
+      "totalMessagesExchanged": 21,
+      "engagementDurationSeconds": 181
+    },
+    "scamType": "phishing",
+    "confidenceLevel": 0.85,
+    "agentNotes": "The scammer uses urgency to pressure the user into providing an OTP and personal information. They provide a UPI ID and a phone number for support, which are common tactics in phishing scams. Case IDs: INS-CASE-311 Policy Numbers: INS-POL-8871"
+  }
+}

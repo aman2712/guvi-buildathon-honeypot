@@ -1,0 +1,230 @@
+[
+  {
+    "scenarioId": "bank_fraud",
+    "name": "Bank Fraud Detection",
+    "scamType": "bank_fraud",
+    "weight": 8,
+    "initialMessage": "URGENT: Your SBI account has been compromised. Share OTP immediately to avoid account block.",
+    "metadata": { "channel": "SMS", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "bankAccount": "1234567890123456",
+      "upiId": "scammer.fraud@fakebank",
+      "phoneNumber": "+91-9876543210",
+      "emailAddress": "fraud.team@fakebank.example",
+      "caseId": "SBI-CASE-2026-9876"
+    }
+  },
+  {
+    "scenarioId": "upi_fraud",
+    "name": "UPI Fraud Multi-turn",
+    "scamType": "upi_fraud",
+    "weight": 7,
+    "initialMessage": "You have won cashback of Rs. 5000. Verify your UPI now to claim within 5 minutes.",
+    "metadata": { "channel": "WhatsApp", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "upiId": "cashback.claim@fakeupi",
+      "phoneNumber": "+91-8765432109",
+      "phishingLink": "https://claim-now.example/cashback",
+      "emailAddress": "offers@cashback-center.example",
+      "orderNumber": "CBK-ORD-4421"
+    }
+  },
+  {
+    "scenarioId": "phishing_link",
+    "name": "Phishing Link Detection",
+    "scamType": "phishing",
+    "weight": 7,
+    "initialMessage": "Exclusive offer ends tonight. Confirm your account at http://amaz0n-deals.fake-site.com/claim?id=12345",
+    "metadata": { "channel": "Email", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "phishingLink": "http://amaz0n-deals.fake-site.com/claim?id=12345",
+      "emailAddress": "offers@fake-amazon-deals.com",
+      "phoneNumber": "+91-9000011111",
+      "orderNumber": "AMZ-TRACK-7788"
+    }
+  },
+  {
+    "scenarioId": "kyc_fraud",
+    "name": "KYC Update Scam",
+    "scamType": "bank_fraud",
+    "weight": 7,
+    "initialMessage": "Your KYC has expired. Complete verification in 15 minutes or account access will be suspended.",
+    "metadata": { "channel": "SMS", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "phishingLink": "https://kyc-refresh.example/verify",
+      "phoneNumber": "+91-9111111111",
+      "caseId": "KYC-2026-5512",
+      "policyNumber": "KYC-POL-9087"
+    }
+  },
+  {
+    "scenarioId": "job_scam",
+    "name": "Job Offer Scam",
+    "scamType": "job_scam",
+    "weight": 6,
+    "initialMessage": "Congratulations, you are selected for a remote job. Pay onboarding fee now to confirm your position.",
+    "metadata": { "channel": "Chat", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "upiId": "hr.onboarding@oksbi",
+      "bankAccount": "6677889900112233",
+      "emailAddress": "hr@instant-hiring.example",
+      "orderNumber": "JOB-ORD-2104"
+    }
+  },
+  {
+    "scenarioId": "lottery_scam",
+    "name": "Lottery Scam",
+    "scamType": "fake_offer",
+    "weight": 6,
+    "initialMessage": "You won INR 25 lakh lottery. Send processing fee immediately to release your prize.",
+    "metadata": { "channel": "SMS", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "phoneNumber": "+91-9222222222",
+      "upiId": "lottery.claim@okaxis",
+      "caseId": "LOT-2026-113",
+      "policyNumber": "LOT-PAYOUT-551"
+    }
+  },
+  {
+    "scenarioId": "electricity_bill",
+    "name": "Electricity Bill Scam",
+    "scamType": "impersonation",
+    "weight": 6,
+    "initialMessage": "Electricity board notice: your power will be disconnected in 30 minutes unless overdue amount is paid now.",
+    "metadata": { "channel": "SMS", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "phoneNumber": "+91-9333333333",
+      "upiId": "billdesk.pay@ybl",
+      "phishingLink": "https://power-pay.example/bill",
+      "orderNumber": "EB-ORDER-661"
+    }
+  },
+  {
+    "scenarioId": "govt_scheme",
+    "name": "Government Scheme Scam",
+    "scamType": "impersonation",
+    "weight": 6,
+    "initialMessage": "Government subsidy pending for your account. Verify details immediately to avoid cancellation.",
+    "metadata": { "channel": "WhatsApp", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "bankAccount": "5566778899001122",
+      "phoneNumber": "+91-9444444444",
+      "emailAddress": "scheme.desk@gov-benefit.example",
+      "caseId": "GOV-REF-770"
+    }
+  },
+  {
+    "scenarioId": "crypto_investment",
+    "name": "Crypto Investment Scam",
+    "scamType": "investment_scam",
+    "weight": 7,
+    "initialMessage": "Double your money in 24 hours. Register now and send initial deposit to activate guaranteed returns.",
+    "metadata": { "channel": "Chat", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "upiId": "wealth.lock@okhdfcbank",
+      "bankAccount": "2233445566778899",
+      "phishingLink": "https://prime-invest-now.example/open",
+      "phoneNumber": "+91-9555555555"
+    }
+  },
+  {
+    "scenarioId": "customs_parcel",
+    "name": "Customs Parcel Scam",
+    "scamType": "delivery_scam",
+    "weight": 6,
+    "initialMessage": "Your international parcel is held at customs. Pay clearance charge now to avoid return.",
+    "metadata": { "channel": "SMS", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "phishingLink": "https://parcel-clearance.example/pay",
+      "orderNumber": "CST-TRACK-9981",
+      "phoneNumber": "+91-9666666666",
+      "emailAddress": "customs.help@parceldesk.example"
+    }
+  },
+  {
+    "scenarioId": "tech_support",
+    "name": "Tech Support Scam",
+    "scamType": "tech_support",
+    "weight": 6,
+    "initialMessage": "Microsoft alert: your device is infected. Contact support now and verify your account to avoid data loss.",
+    "metadata": { "channel": "Chat", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "phoneNumber": "+91-9777777777",
+      "phishingLink": "https://device-cleanup.example/remote",
+      "emailAddress": "helpdesk@security-alert.example",
+      "caseId": "SUP-5566"
+    }
+  },
+  {
+    "scenarioId": "loan_approval",
+    "name": "Loan Approval Scam",
+    "scamType": "fake_offer",
+    "weight": 6,
+    "initialMessage": "Your instant loan is approved. Pay processing fee now to disburse funds immediately.",
+    "metadata": { "channel": "SMS", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "upiId": "loan.process@okicici",
+      "bankAccount": "8899001122334455",
+      "phoneNumber": "+91-9888888888",
+      "policyNumber": "LN-PROC-2201"
+    }
+  },
+  {
+    "scenarioId": "income_tax",
+    "name": "Income Tax Refund Scam",
+    "scamType": "impersonation",
+    "weight": 6,
+    "initialMessage": "Income tax refund pending. Verify PAN and bank details now to receive refund today.",
+    "metadata": { "channel": "Email", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "phishingLink": "https://refund-tax.example/claim",
+      "emailAddress": "refund@it-dept-alert.example",
+      "caseId": "ITR-2026-454",
+      "phoneNumber": "+91-9999999990"
+    }
+  },
+  {
+    "scenarioId": "refund_scam",
+    "name": "Payment Refund Scam",
+    "scamType": "upi_fraud",
+    "weight": 6,
+    "initialMessage": "Failed transaction detected. Share UPI details and OTP to process immediate refund.",
+    "metadata": { "channel": "WhatsApp", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "upiId": "refund.verify@ibl",
+      "phoneNumber": "+91-9999999991",
+      "emailAddress": "refund.ops@payments.example",
+      "orderNumber": "RFND-9912"
+    }
+  },
+  {
+    "scenarioId": "insurance",
+    "name": "Insurance Renewal Scam",
+    "scamType": "other",
+    "weight": 10,
+    "initialMessage": "Insurance policy lapsed warning. Pay renewal charges immediately to keep policy active.",
+    "metadata": { "channel": "SMS", "language": "English", "locale": "IN" },
+    "maxTurns": 10,
+    "fakeData": {
+      "policyNumber": "INS-POL-8871",
+      "phoneNumber": "+91-9999999992",
+      "upiId": "policy.renew@okaxis",
+      "emailAddress": "renewal@insurance-help.example",
+      "caseId": "INS-CASE-311"
+    }
+  }
+]

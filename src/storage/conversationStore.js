@@ -61,6 +61,8 @@ export function getOrCreateSession(sessionId) {
         phoneNumbers: [],
         suspiciousKeywords: [],
         caseIds: [],
+        policyNumbers: [],
+        orderNumbers: [],
         staffIds: [],
         agentNames: [],
       },
@@ -88,6 +90,8 @@ export function getOrCreateSession(sessionId) {
           upiId: 0,
           bankAccount: 0,
           caseId: 0,
+          policyNumber: 0,
+          orderNumber: 0,
           agentName: 0,
           phoneNumber: 0,
           emailAddress: 0,
@@ -281,7 +285,7 @@ function hasEmailTld(domain = "") {
 }
 
 function hasUpiDomainHint(domain = "") {
-  return /(upi|pay|ok|ybl|ibl|axl|oksbi|okhdfc|okicici|okaxis|okbizaxis|apl)/i.test(
+  return /(upi|ybl|ibl|axl|oksbi|okhdfc|okicici|okaxis|okbizaxis|apl|^ok[a-z0-9]+)/i.test(
     domain,
   );
 }
@@ -415,6 +419,14 @@ export function updateIntelligence(sessionId, extractionResult) {
       intel.suspiciousKeywords,
     ),
     caseIds: mergeUnique(session.extractedIntelligence.caseIds, intel.caseIds),
+    policyNumbers: mergeUnique(
+      session.extractedIntelligence.policyNumbers,
+      intel.policyNumbers,
+    ),
+    orderNumbers: mergeUnique(
+      session.extractedIntelligence.orderNumbers,
+      intel.orderNumbers,
+    ),
     staffIds: mergeUnique(session.extractedIntelligence.staffIds, intel.staffIds),
     agentNames: mergeUnique(
       session.extractedIntelligence.agentNames,
@@ -508,6 +520,12 @@ export function updateDialogState(sessionId, agentReply) {
   }
   if (extractionTargets.includes("caseId")) {
     askedCounts.caseId = (askedCounts.caseId || 0) + 1;
+  }
+  if (extractionTargets.includes("policyNumber")) {
+    askedCounts.policyNumber = (askedCounts.policyNumber || 0) + 1;
+  }
+  if (extractionTargets.includes("orderNumber")) {
+    askedCounts.orderNumber = (askedCounts.orderNumber || 0) + 1;
   }
   if (extractionTargets.includes("agentName")) {
     askedCounts.agentName = (askedCounts.agentName || 0) + 1;

@@ -46,7 +46,7 @@ export const buildAgentReplyPrompt = ({
   const prompt = `
 SYSTEM:
 You are a normal person chatting in a multi-turn conversation.
-Goal: keep the scammer engaged and elicit scam intelligence (phone number, UPI ID, bank account, email, link, organization, case ID, agent name) without revealing detection.
+Goal: keep the scammer engaged and elicit scam intelligence (phone number, UPI ID, bank account, email, link, organization, case ID, policy number, order number, agent name) without revealing detection.
 Never share real sensitive data. Do not harass. Do not instruct illegal activity.
 Output JSON only.
 
@@ -69,7 +69,7 @@ OUTPUT (JSON only, no markdown, no extra keys):
 {
   "reply": string,
   "intentTag": "ASK_CLARIFY" | "ASK_LINK" | "ASK_CONTACT" | "ASK_PAYMENT_DESTINATION" | "VERIFY_IDENTITY" | "STALL" | "WRAP_UP",
-  "extractionTargets": ("phoneNumber"|"upiId"|"bankAccount"|"emailAddress"|"phishingLink"|"claimedOrg"|"agentName"|"caseId"|"appName")[]
+  "extractionTargets": ("phoneNumber"|"upiId"|"bankAccount"|"emailAddress"|"phishingLink"|"policyNumber"|"orderNumber"|"claimedOrg"|"agentName"|"caseId"|"appName")[]
 }
 
 RULES:
@@ -90,9 +90,11 @@ RULES:
    b) phishingLink (only if askedCounts.link < 2)
    c) phoneNumber
    d) emailAddress (ask for an official follow-up email)
-   e) agentName
-   f) caseId
-   g) claimedOrg
+   e) caseId
+   f) policyNumber
+   g) orderNumber
+   h) agentName
+   i) claimedOrg
 10) If the scammer refuses to provide a missing item twice, switch to the next missing item.
 11) Avoid repetitive openers like "I understand the urgency". Use varied simple openers.
 12) Avoid repetitive messages which follow the same format, e.g., "Just for clarification", "Could you please provide", etc. Vary your sentence structures.
@@ -101,6 +103,7 @@ RULES:
 15) You MUST ask for an official website link/URL at least once before moving to WRAP_UP, unless a valid http/https link is already present in knownIntelligence.
 15a) If knownIntelligence.phishingLinks already has at least one value, do not ask for website/link again.
 16) Keep only one direct question in the reply.
+17) At least one third of replies should explicitly reference a red flag from the latest scammer message (urgency, OTP request, threat, suspicious link, fee/payment pressure) in neutral language.
   `;
   return prompt;
 };
@@ -138,6 +141,8 @@ OUTPUT REQUIREMENTS:
     "phoneNumbers": string[],
     "suspiciousKeywords": string[],
     "caseIds": string[],
+    "policyNumbers": string[],
+    "orderNumbers": string[],
     "staffIds": string[],
     "agentNames": string[]
   },
@@ -159,6 +164,8 @@ EXTRACTION RULES:
 - phoneNumbers: include phone numbers exactly as written.
 - suspiciousKeywords: return normalized lowercased phrases actually present (e.g., "urgent", "verify", "account blocked", "kyc", "upi", "otp").
 - caseIds: include case IDs or reference IDs exactly as written.
+- policyNumbers: include policy numbers exactly as written.
+- orderNumbers: include order IDs/tracking/order numbers exactly as written.
 - staffIds: include staff IDs or employee IDs exactly as written.
 - agentNames: include names of the person contacting the user, if explicitly stated.
 - claimedOrganization: set to the org/entity the scammer claims (bank name, govt, support) if explicitly stated; else null.

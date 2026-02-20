@@ -17,7 +17,7 @@ export function authMiddleware(req, res, next) {
       provided: req.header("x-api-key"),
       expected: apiKey,
     });
-    return res.status(400).json({
+    return res.status(401).json({
       status: "failed",
       reply: "",
       message: "Unauthorized",

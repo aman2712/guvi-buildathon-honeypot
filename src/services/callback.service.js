@@ -1,4 +1,6 @@
 import axios from "axios";
+import fs from "fs";
+import path from "path";
 
 const CALLBACK_URL =
   "https://hackathon.guvi.in/api/updateHoneyPotFinalResult";
@@ -11,6 +13,7 @@ function toLegacyPayload(payload) {
     extractedIntelligence: {
       bankAccounts: payload?.extractedIntelligence?.bankAccounts || [],
       upiIds: payload?.extractedIntelligence?.upiIds || [],
+      emailAddresses: payload?.extractedIntelligence?.emailAddresses || [],
       phishingLinks: payload?.extractedIntelligence?.phishingLinks || [],
       phoneNumbers: payload?.extractedIntelligence?.phoneNumbers || [],
       suspiciousKeywords:
@@ -18,6 +21,20 @@ function toLegacyPayload(payload) {
     },
     agentNotes: payload?.agentNotes || "",
   };
+}
+
+function capturePayload(payload) {
+  const captureFile = process.env.CALLBACK_CAPTURE_FILE;
+  if (!captureFile) return;
+
+  const capturePath = path.isAbsolute(captureFile)
+    ? captureFile
+    : path.join(process.cwd(), captureFile);
+  const dir = path.dirname(capturePath);
+  if (!fs.existsSync(dir)) {
+    fs.mkdirSync(dir, { recursive: true });
+  }
+  fs.appendFileSync(capturePath, `${JSON.stringify(payload)}\n`);
 }
 
 async function postPayload(payload) {
@@ -29,6 +46,7 @@ async function postPayload(payload) {
 
 export async function sendFinalResult(payload) {
   console.log("[GUVI Callback] Payload:", JSON.stringify(payload, null, 2));
+  capturePayload(payload);
   const maxAttempts = 3;
   const legacyPayload = toLegacyPayload(payload);
   const hasExtendedPayload =

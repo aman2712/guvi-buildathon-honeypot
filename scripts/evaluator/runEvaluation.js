@@ -46,6 +46,8 @@ function detectTargetsFromHoneypotReply(reply = "") {
     link: /\blink\b|\bwebsite\b|\burl\b|\bportal\b/.test(text),
     email: /\bemail\b|\bmail\b/.test(text),
     caseId: /\bcase\b|\breference\b/.test(text),
+    policyNumber: /\bpolicy\b/.test(text),
+    orderNumber: /\border\b|\btracking\b/.test(text),
     name: /\bname\b|\bagent\b|\bwho should i ask for\b/.test(text),
   };
 }
@@ -58,6 +60,8 @@ function nextUnsharedType(state, fakeData) {
     "phishingLink",
     "emailAddress",
     "caseId",
+    "policyNumber",
+    "orderNumber",
     "agentName",
   ];
   for (const key of priority) {
@@ -78,6 +82,8 @@ function buildInfoSentence(type, value) {
   if (type === "phishingLink") return `Use this verification link ${value}`;
   if (type === "emailAddress") return `Send confirmation details to ${value}`;
   if (type === "caseId") return `Your case ID is ${value}`;
+  if (type === "policyNumber") return `Your policy number is ${value}`;
+  if (type === "orderNumber") return `Your order number is ${value}`;
   if (type === "agentName") return `The assigned officer is ${value}`;
   return "";
 }
@@ -115,6 +121,14 @@ function generateScammerFollowup({
   if (asked.caseId && fakeData.caseId) {
     infoParts.push(buildInfoSentence("caseId", fakeData.caseId));
     setShared(state, "caseId");
+  }
+  if (asked.policyNumber && fakeData.policyNumber) {
+    infoParts.push(buildInfoSentence("policyNumber", fakeData.policyNumber));
+    setShared(state, "policyNumber");
+  }
+  if (asked.orderNumber && fakeData.orderNumber) {
+    infoParts.push(buildInfoSentence("orderNumber", fakeData.orderNumber));
+    setShared(state, "orderNumber");
   }
   if (asked.name && fakeData.agentName) {
     infoParts.push(buildInfoSentence("agentName", fakeData.agentName));
